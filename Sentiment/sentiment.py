@@ -90,12 +90,12 @@ def main():
     if len(sys.argv) > 1:
         folder = sys.argv[1]
     else:
-        folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "txt_files")
+        folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "articles")
 
     if not os.path.isdir(folder):
         print(f"Error: folder '{folder}' does not exist.")
         print(f"Usage: python sentiment.py [folder_path]")
-        print(f"Default folder: ./txt_files")
+        print(f"Default folder: ./articles")
         sys.exit(1)
 
     txt_files = sorted(glob.glob(os.path.join(folder, "*.txt")))

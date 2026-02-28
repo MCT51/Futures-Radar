@@ -14,6 +14,7 @@ from typing import Dict, List, Tuple
 
 import feedparser
 import requests
+from googlenewsdecoder import gnewsdecoder
 from bs4 import BeautifulSoup
 
 
@@ -23,6 +24,7 @@ from bs4 import BeautifulSoup
 DEFAULT_FEED_URLS = [
     "https://feeds.bbci.co.uk/news/uk/rss.xml",
     "https://feeds.bbci.co.uk/news/education/rss.xml",
+    "https://news.google.com/rss/search?q=SEND;+education&hl=en-GB&gl=GB&ceid=GB:en",
 ]
 DEFAULT_OUTPUT_CSV = "bbc_education_inclusion_signals.csv"
 DEFAULT_DB_PATH = "bbc_education_inclusion.db"
@@ -138,6 +140,18 @@ def dedupe_items(items: List[Dict]) -> List[Dict]:
         out.append(item)
     return out
 
+def convert_google_news_link(google_news_url):
+    try:
+        decoded_url = gnewsdecoder(google_news_url, interval=1)
+
+        if decoded_url.get("status"):
+            return decoded_url["decoded_url"]
+        else:
+            return "ERROR"
+           
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return "ERROR"
 
 def fetch_rss_items(feed_url: str, max_items: int) -> List[Dict]:
     feed = feedparser.parse(feed_url)
@@ -147,6 +161,12 @@ def fetch_rss_items(feed_url: str, max_items: int) -> List[Dict]:
         url = entry.get("link", "")
         if not url:
             continue
+        if "news.google.com" in url:
+            url = convert_google_news_link(url)
+            if url == "ERROR":
+                continue
+            
+            
         items.append(
             {
                 "id": entry.get("id") or stable_id(url),
@@ -157,7 +177,7 @@ def fetch_rss_items(feed_url: str, max_items: int) -> List[Dict]:
                 "published_date": normalize_published_date(
                     entry.get("published", "") or entry.get("updated", "")
                 ),
-                "source": "BBC UK RSS",
+                "source": feed_url.split("/")[2] if feed_url.startswith("http") else "unknown",
             }
         )
     return dedupe_items(items)
@@ -813,6 +833,7 @@ def write_discovered_terms_csv(
 # --------------------------
 def run_pipeline(
     feed_urls: List[str],
+    search_terms: List[str],
     output_csv: str,
     db_path: str,
     max_items: int,
@@ -823,6 +844,13 @@ def run_pipeline(
     preview_discovered_top: int,
     temporal_lookback_days: int,
 ) -> None:
+    
+    if search_terms[0] != "":
+        for search_term in search_terms:
+            google_news_feed = f"https://news.google.com/rss/search?q={requests.utils.quote(search_term)}&hl=en-GB&gl=GB&ceid=GB:en"
+            if google_news_feed not in feed_urls:
+                feed_urls.append(google_news_feed)
+
     items = fetch_rss_items_from_feeds(feed_urls, max_items=max_items)
     rows = []
     errors = []
@@ -947,6 +975,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="feed_urls",
         help="RSS feed URL. Repeat this flag to add multiple feeds.",
     )
+    parser.add_argument("--search-terms", default=[""], help='add google news search feeds (e.g. "special educational needs")')
     parser.add_argument("--output", default=DEFAULT_OUTPUT_CSV, help="Output CSV path")
     parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="SQLite output path")
     parser.add_argument("--max-items", type=int, default=80, help="Max RSS items to process")
@@ -995,6 +1024,7 @@ def main() -> None:
     feed_urls = args.feed_urls if args.feed_urls else DEFAULT_FEED_URLS
     run_pipeline(
         feed_urls=feed_urls,
+        search_term=args.search_term,
         output_csv=args.output,
         db_path=args.db_path,
         max_items=args.max_items,
