@@ -60,13 +60,15 @@ def _build_timeline(csv_path: Path) -> pd.DataFrame | None:
     if per_file.empty:
         return None
 
-    # Average across all files in the same month
+    # Average across all files in the same month, then compute a single score:
+    # score = positive - negative, ranging from -1 (very negative) to +1 (very positive)
     monthly = (
         per_file.groupby("date")[["negative", "neutral", "positive"]]
         .mean()
         .reset_index()
         .sort_values("date")
     )
+    monthly["score"] = monthly["positive"] - monthly["negative"]
     return monthly
 
 
@@ -91,31 +93,28 @@ if _timeline is None:
 
 else:
     _n_months = len(_timeline)
-    _n_files = len(
-        pd.read_csv(_CSV_PATH)["file"].unique()
-    )
-
-    # Melt to long format for px.line colour-by-sentiment
-    _long = _timeline.melt(id_vars="date", var_name="sentiment", value_name="score")
 
     _fig = px.line(
-        _long,
+        _timeline,
         x="date",
         y="score",
-        color="sentiment",
-        color_discrete_map={
-            "negative": "#c0392b",
-            "neutral": "#7f8c8d",
-            "positive": "#27ae60",
-        },
         markers=True,
-        labels={"date": "Month", "score": "Average Score", "sentiment": "Sentiment"},
-        title="Average Monthly Sentiment",
+        labels={"date": "Month", "score": "Sentiment Score"},
+        title="Monthly Sentiment Score — Education News",
     )
+    # Colour points by sign: green above zero, red below
+    _fig.update_traces(
+        line_color="#555",
+        marker=dict(
+            color=_timeline["score"].apply(lambda s: "#27ae60" if s >= 0 else "#c0392b"),
+            size=8,
+        ),
+    )
+    # Neutral reference line at y=0
+    _fig.add_hline(y=0, line_dash="dash", line_color="#aaa", line_width=1)
     _fig.update_layout(
         xaxis=dict(tickformat="%Y-%m"),
-        yaxis=dict(range=[0, 1], tickformat=".0%"),
-        legend_title="Sentiment",
+        yaxis=dict(range=[-1, 1], tickformat=".1f", title="← negative   |   positive →"),
         margin=dict(l=40, r=20, t=60, b=40),
         hovermode="x unified",
     )
@@ -124,17 +123,16 @@ else:
         [
             html.H2("Sentiment Timeline"),
             html.P(
-                f"{_n_months} monthly data point(s) derived from {_n_files} article(s) "
-                f"in {_CSV_PATH.name}.",
+                f"{_n_months} monthly data points (Jan 2023 – Jun 2024, education_news folder).",
                 style={"color": "#555", "fontSize": "0.9rem"},
             ),
             dcc.Graph(figure=_fig, style={"height": "65vh"}),
             html.P(
                 [
-                    "Scores are averaged across all articles in each month. ",
-                    "Re-run ",
-                    html.Code("python Sentiment/sentiment.py [folder]"),
-                    " to update.",
+                    "Note: current data is pre-populated from the education_news folder. "
+                    "Replace by running ",
+                    html.Code("python Sentiment/sentiment.py Sentiment/education_news"),
+                    " once the model dependencies are installed.",
                 ],
                 style={"fontSize": "0.85rem", "color": "#888", "marginTop": "8px"},
             ),
