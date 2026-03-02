@@ -342,7 +342,7 @@ HTML_PAGE = """<!doctype html>
       const maxRaw = Math.max(...renderData.map(d => d.value), 1);
       const scaledData = renderData.map(d => {
         const normalized = d.value / maxRaw;
-        const boosted = Math.pow(normalized, 1.1); // Aggressively enlarge high-frequency words.
+        const boosted = Math.pow(normalized, 0.9); // Aggressively enlarge high-frequency words.
         return { ...d, raw_value: d.value, value: boosted*20 };
       });
 
@@ -355,7 +355,7 @@ HTML_PAGE = """<!doctype html>
           shape: "circle",
           width: "100%",
           height: "100%",
-          sizeRange: [18, 300],
+          sizeRange: [18, 200],
           rotationRange: [-20, 20],
           gridSize: 6,
           drawOutOfBound: false,
