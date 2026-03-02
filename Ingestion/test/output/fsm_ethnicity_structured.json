@@ -43314,8 +43314,7 @@
           "202223": "202223",
           "202324": "202324",
           "202425": "202425"
-        },
-        "total_required": true
+        }
       },
       {
         "title": "Location (LA code)",
@@ -43484,8 +43483,7 @@
           "E10000031": "Warwickshire",
           "E10000032": "West Sussex",
           "E10000034": "Worcestershire"
-        },
-        "total_required": true
+        }
       }
     ],
     "secondary_variables": [
