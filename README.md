@@ -5,7 +5,10 @@ Run "git lfs install", then "git lfs pull" in your terminal and everything shoul
 
 To use anything, run "python -m pip install -r requirements.txt" in your terminal first
 
-To run heatmap demo run: "python Heatmap/heatmaptest.py", then ctrl + left click on http://<ip here>/
+To run main demo, run "app.py", then ctrl + left click on http://<ip here>/ (Make sure the current working directory is the root directory (Futures-Radar))
 
+
+
+**FOR DEVELOPERS**
 If you want to push datasets > 100MB, use git lfs track to add specific folders to be pushed to git LFS rather than the standard git.
 I have named such folders with -needslfs at the end for clarity.
