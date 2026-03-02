@@ -34,6 +34,11 @@ _PAGES = [
         "title": "Sentiment Timeline",
         "desc": "Average monthly sentiment score across education news articles.",
     },
+    {
+        "href": "/wordcloud",
+        "title": "Word Cloud",
+        "desc": "Interactive education inclusion keyword cloud with article drill-down and trends.",
+    },
 ]
 
 layout = html.Div(

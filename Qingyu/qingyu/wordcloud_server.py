@@ -32,13 +32,15 @@ HTML_PAGE = """<!doctype html>
       background: radial-gradient(1100px 500px at 10% 0%, #e8f5e7, transparent), var(--bg);
       color: var(--ink);
       font-family: "Source Sans 3", "Segoe UI", sans-serif;
+      height: 100vh;
+      overflow: hidden;
     }
     .layout {
       display: grid;
       grid-template-columns: 1.8fr 1fr;
       gap: 16px;
       padding: 18px;
-      min-height: 100vh;
+      height: 100vh;
     }
     .panel {
       background: var(--panel);
@@ -46,11 +48,16 @@ HTML_PAGE = """<!doctype html>
       border-radius: 14px;
       padding: 12px;
       box-shadow: 0 8px 24px rgba(20, 45, 30, 0.08);
+      min-height: 0;
+    }
+    .panel-right {
+      display: flex;
+      flex-direction: column;
     }
     #cloud {
       width: 100%;
-      height: calc(100vh - 30px);
-      min-height: 760px;
+      height: calc(100vh - 180px);
+      min-height: 500px;
     }
     h1 {
       margin: 0 0 4px;
@@ -59,6 +66,11 @@ HTML_PAGE = """<!doctype html>
     }
     .meta { margin: 0 0 10px; font-size: 0.9rem; color: #4f6a59; }
     table { width: 100%; border-collapse: collapse; }
+    .result-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+    }
     th, td {
       text-align: left;
       border-bottom: 1px solid var(--line);
@@ -103,6 +115,8 @@ HTML_PAGE = """<!doctype html>
       padding: 0;
       list-style: none;
       border-top: 1px solid var(--line);
+      max-height: 220px;
+      overflow-y: auto;
     }
     .blacklist-item {
       display: flex;
@@ -129,7 +143,11 @@ HTML_PAGE = """<!doctype html>
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
     @media (max-width: 960px) {
+      body { height: auto; overflow: auto; }
       .layout { grid-template-columns: 1.0fr; }
+      .layout { height: auto; min-height: 100vh; }
+      .panel-right { display: block; }
+      .result-scroll { overflow: visible; }
       #cloud { height: 80vh; min-height: 520px; }
     }
   </style>
@@ -154,7 +172,7 @@ HTML_PAGE = """<!doctype html>
       <p class="meta" id="range-meta">Date filter: all time</p>
       <div id="cloud"></div>
     </section>
-    <section class="panel">
+    <section class="panel panel-right">
       <div class="right-header">
         <h1 id="term-title">Select a Word</h1>
         <div style="display:flex; gap:8px;">
@@ -176,18 +194,20 @@ HTML_PAGE = """<!doctype html>
         <div id="trend-chart"></div>
       </div>
       <p class="meta" id="term-meta">No term selected.</p>
-      <table>
-        <thead>
-          <tr>
-            <th>Frequency</th>
-            <th>Published</th>
-            <th>Article</th>
-          </tr>
-        </thead>
-        <tbody id="result-body">
-          <tr><td colspan="3">Click a word in the cloud.</td></tr>
-        </tbody>
-      </table>
+      <div class="result-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Frequency</th>
+              <th>Published</th>
+              <th>Article</th>
+            </tr>
+          </thead>
+          <tbody id="result-body">
+            <tr><td colspan="3">Click a word in the cloud.</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   </div>
 
@@ -338,12 +358,13 @@ HTML_PAGE = """<!doctype html>
     }
 
     function drawCloud(data) {
-      const renderData = data.slice(0, 30);
+      // Keep fewer terms and larger spacing so smaller words remain selectable.
+      const renderData = data.slice(0, 24);
       const maxRaw = Math.max(...renderData.map(d => d.value), 1);
       const scaledData = renderData.map(d => {
         const normalized = d.value / maxRaw;
-        const boosted = Math.pow(normalized, 0.9); // Aggressively enlarge high-frequency words.
-        return { ...d, raw_value: d.value, value: boosted*20 };
+        const boosted = Math.pow(normalized, 0.78); // Lift smaller words relative to dominant terms.
+        return { ...d, raw_value: d.value, value: boosted * 26 };
       });
 
       const option = {
@@ -355,9 +376,9 @@ HTML_PAGE = """<!doctype html>
           shape: "circle",
           width: "100%",
           height: "100%",
-          sizeRange: [18, 200],
+          sizeRange: [28, 180],
           rotationRange: [-20, 20],
-          gridSize: 6,
+          gridSize: 10,
           drawOutOfBound: false,
           shape: "circle",
           textStyle: {
