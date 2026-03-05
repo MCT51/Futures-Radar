@@ -9,7 +9,12 @@ from typing import Any
 import pandas as pd
 
 try:
-    from Ingestion.primary_variable import PrimaryVariable, TOTAL_VALUE
+    from Ingestion.primary_variable import (
+        PrimaryVariable,
+        QualitativePrimaryVariable,
+        QuantitativePrimaryVariable,
+        TOTAL_VALUE,
+    )
     from Ingestion.secondary_variable import (
         DistributionSecondaryVariable,
         QualitativeScalarSecondaryVariable,
@@ -21,7 +26,12 @@ try:
         secondary_variable_from_dict,
     )
 except ModuleNotFoundError:  # Support running as script from Ingestion/
-    from primary_variable import PrimaryVariable, TOTAL_VALUE
+    from primary_variable import (
+        PrimaryVariable,
+        QualitativePrimaryVariable,
+        QuantitativePrimaryVariable,
+        TOTAL_VALUE,
+    )
     from secondary_variable import (
         DistributionSecondaryVariable,
         QualitativeScalarSecondaryVariable,
@@ -491,6 +501,8 @@ class Schema:
 __all__ = [
     "Schema",
     "PrimaryVariable",
+    "QualitativePrimaryVariable",
+    "QuantitativePrimaryVariable",
     "TOTAL_VALUE",
     "SecondaryVariable",
     "ScalarSecondaryVariable",

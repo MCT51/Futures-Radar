@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 
 import pandas as pd
 
 try:
-    from Ingestion.primary_variable import PrimaryVariable, TOTAL_VALUE
+    from Ingestion.primary_variable import (
+        QualitativePrimaryVariable,
+        QuantitativePrimaryVariable,
+        TOTAL_VALUE,
+    )
     from Ingestion.schema import Schema
     from Ingestion.secondary_variable import (
         QualitativeDistributionVariable,
@@ -19,7 +24,11 @@ except ModuleNotFoundError:  # Allows `python3 Ingestion/test/make_sen_age_sex_s
     ROOT = Path(__file__).resolve().parents[2]
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
-    from Ingestion.primary_variable import PrimaryVariable, TOTAL_VALUE
+    from Ingestion.primary_variable import (
+        QualitativePrimaryVariable,
+        QuantitativePrimaryVariable,
+        TOTAL_VALUE,
+    )
     from Ingestion.schema import Schema
     from Ingestion.secondary_variable import (
         QualitativeDistributionVariable,
@@ -137,8 +146,16 @@ def build_schema(raw: pd.DataFrame) -> Schema:
 
     return Schema(
         primary_variables=[
-            PrimaryVariable("Year", "year", {y: y for y in years}),
-            PrimaryVariable("Location (LA code)", "location_code", location_dict),
+            QuantitativePrimaryVariable(
+                "Year",
+                "year",
+                {y: y for y in years},
+                csv_to_number={
+                    y: float(y) if y.replace(".", "", 1).isdigit() else float(i)
+                    for i, y in enumerate(years)
+                },
+            ),
+            QualitativePrimaryVariable("Location (LA code)", "location_code", location_dict),
         ],
         secondary_variables=[
             QuantitativeDistributionVariable(
@@ -233,7 +250,7 @@ def build_non_total_rows(raw: pd.DataFrame, schema: Schema) -> pd.DataFrame:
     return rows_df
 
 
-def build_structured_data() -> StructuredData:
+def build_structured_data(*, flatten_primary_column: str | None = "year") -> StructuredData:
     raw = load_raw()
     schema = build_schema(raw)
     non_total_rows = build_non_total_rows(raw, schema)
@@ -254,7 +271,21 @@ def build_structured_data() -> StructuredData:
     strict_df = schema.generateAverages(strict_df)
     schema.checkCSV(strict_df)
 
-    return StructuredData.from_dataframe(strict_df, schema, validate_final=False)
+    structured = StructuredData.from_dataframe(strict_df, schema, validate_final=False)
+    if flatten_primary_column is not None:
+        structured = structured.flatten_primary_to_secondary(flatten_primary_column)
+    return structured
+
+
+def _assert_primary_types_in_saved_json(json_path: Path) -> None:
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    primary = payload["schema"]["primary_variables"]
+    for entry in primary:
+        if "class" not in entry or "variable_type" not in entry:
+            raise ValueError(
+                "Saved schema primary variable is missing 'class' or 'variable_type'. "
+                f"Entry: {entry}"
+            )
 
 
 def main() -> None:
@@ -264,6 +295,7 @@ def main() -> None:
     json_path = OUTPUT_DIR / "sen_age_sex_structured.json"
     csv_path = OUTPUT_DIR / "sen_age_sex_structured.csv"
     structured.save(json_path=json_path, csv_path=csv_path)
+    _assert_primary_types_in_saved_json(json_path)
 
     print(f"Saved StructuredData JSON: {json_path}")
     print(f"Saved StructuredData CSV:  {csv_path}")

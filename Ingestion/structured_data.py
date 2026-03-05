@@ -9,8 +9,12 @@ import pandas as pd
 
 try:
     from Ingestion.schema import Schema
+    from Ingestion.primary_variable import TOTAL_VALUE
+    from Ingestion.secondary_variable import QualitativeDistributionVariable
 except ModuleNotFoundError:  # Support running from Ingestion/
     from schema import Schema
+    from primary_variable import TOTAL_VALUE
+    from secondary_variable import QualitativeDistributionVariable
 
 
 DefinedMap = dict[tuple[tuple[str, ...], str], bool]
@@ -214,3 +218,79 @@ class StructuredData:
         if len(matched) > 1:
             raise ValueError(f"Multiple rows found for primary values: {primary_values}")
         return matched.iloc[0]
+
+    def flatten_primary_to_secondary(
+        self,
+        primary_column_name: str,
+        *,
+        secondary_display_name: str | None = None,
+        secondary_variable_name: str | None = None,
+    ) -> "StructuredData":
+        """
+        Convert one primary variable into a qualitative distribution secondary variable.
+
+        The selected primary dimension is removed from row identity. For each remaining
+        primary-key row, a new distribution is created whose categories are the original
+        primary values and whose counts are row frequencies from the original table.
+        """
+        target = next(
+            (pv for pv in self.schema.primary_variables if pv.column_name == primary_column_name),
+            None,
+        )
+        if target is None:
+            raise KeyError(f"Unknown primary column '{primary_column_name}'")
+
+        remaining_primary = [
+            pv for pv in self.schema.primary_variables if pv.column_name != primary_column_name
+        ]
+        if not remaining_primary:
+            raise ValueError("Cannot flatten the only primary variable; at least one must remain.")
+
+        display_name = secondary_display_name or f"{target.title} Distribution"
+        moved_secondary = QualitativeDistributionVariable(
+            display_name=display_name,
+            csv_dict=dict(target.csv_to_display),
+            variable_name=secondary_variable_name,
+        )
+
+        # Generate totals/summaries on the full source first, then keep rows where
+        # the moved dimension is aggregated at TOTAL.
+        base = self.schema.generateTotals(self.dataframe)
+        base = self.schema.generatePercentages(base)
+        base = self.schema.generateAverages(base)
+        base = base[base[primary_column_name].astype(str).eq(TOTAL_VALUE)].copy()
+        base = base.drop(columns=[primary_column_name])
+
+        # Populate moved-dimension distribution counts using source row frequencies.
+        source = self.dataframe.copy()
+        source[primary_column_name] = source[primary_column_name].astype(str)
+        for key in moved_secondary.keys():
+            col = moved_secondary.count_column(key)
+            base[col] = pd.NA
+
+        for idx, row in base.iterrows():
+            mask = pd.Series(True, index=source.index)
+            for pv in remaining_primary:
+                row_val = str(row[pv.column_name])
+                if row_val == TOTAL_VALUE:
+                    mask &= source[pv.column_name].astype(str).ne(TOTAL_VALUE)
+                else:
+                    mask &= source[pv.column_name].astype(str).eq(row_val)
+
+            subset = source.loc[mask]
+            if subset.empty:
+                continue
+            counts = subset[primary_column_name].value_counts()
+            for key in moved_secondary.keys():
+                base.at[idx, moved_secondary.count_column(key)] = int(counts.get(key, 0))
+
+        new_schema = Schema(
+            primary_variables=remaining_primary,
+            secondary_variables=[*self.schema.secondary_variables, moved_secondary],
+            strict_complete_grid=self.schema.strict_complete_grid,
+            allow_empty_entries=self.schema.allow_empty_entries,
+            undefined_policy=self.schema.undefined_policy,
+        )
+        base = new_schema.generatePercentages(base)
+        base = new_schema.generateAverages(base)
+        return StructuredData.from_dataframe(base, new_schema, validate_final=True)
