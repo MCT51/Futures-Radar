@@ -24,7 +24,7 @@ from bs4 import BeautifulSoup
 DEFAULT_FEED_URLS = [
     "https://feeds.bbci.co.uk/news/uk/rss.xml",
     "https://feeds.bbci.co.uk/news/education/rss.xml",
-    "https://news.google.com/rss/search?q=SEND;+education&hl=en-GB&gl=GB&ceid=GB:en",
+    #"https://news.google.com/rss/search?q=SEND;+education&hl=en-GB&gl=GB&ceid=GB:en",
 ]
 DEFAULT_OUTPUT_CSV = "bbc_education_inclusion_signals.csv"
 DEFAULT_DB_PATH = "bbc_education_inclusion.db"
@@ -382,7 +382,9 @@ def initialize_database(db_path: str) -> sqlite3.Connection:
             keywords_json TEXT,
             education_hits_json TEXT,
             inclusion_hits_json TEXT,
-            ingested_at TEXT DEFAULT CURRENT_TIMESTAMP
+            ingested_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            sentiment_score REAL,
+            sentiment_label TEXT
         );
 
         CREATE TABLE IF NOT EXISTS article_terms (
@@ -861,6 +863,7 @@ def run_pipeline(
         blacklist_terms = load_blacklist_terms(conn)
         for item in items:
             try:
+                print(f"Processing article: {item['title']} ({item['url']})")
                 text = extract_article_text(item["url"])
             except Exception as exc:
                 errors.append({"url": item["url"], "error": str(exc)})
@@ -1024,7 +1027,7 @@ def main() -> None:
     feed_urls = args.feed_urls if args.feed_urls else DEFAULT_FEED_URLS
     run_pipeline(
         feed_urls=feed_urls,
-        search_term=args.search_term,
+        search_terms=args.search_terms,
         output_csv=args.output,
         db_path=args.db_path,
         max_items=args.max_items,
