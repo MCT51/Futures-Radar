@@ -5,6 +5,9 @@ on:
     - cron: '0 0 * * *' # Runs every day at midnight UTC
   workflow_dispatch: # Manual triggering
 
+permissions:
+  contents: write
+
 jobs:
   ingest-rss:
     runs-on: ubuntu-latest
@@ -25,25 +28,17 @@ jobs:
 
       - name: Run RSS ingestion
         run: |
-          python3 Qingyu/qingyu/bbc_inclusion_signals.py --term-mode baseline
-
-      - name: Create article text files
-        run: |
-          python3 Qingyu/qingyu/article_to_text.py
+          python3 Wordcloud/wordcloud/bbc_inclusion_signals.py \
+            --term-mode baseline \
+            --db-path Wordcloud/wordcloud/bbc_education_inclusion.db \
+            --output Wordcloud/wordcloud/bbc_education_inclusion_signals.csv \
+            --discovered-output-csv Wordcloud/wordcloud/discovered_terms_preview.csv
 
       - name: Run sentiment analysis
         env:
           HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
         run: |
           python3 Sentiment/sentiment.py
-
-      - name: Insert sentiment results into database
-        run: |
-          python3 Qingyu/qingyu/sentiment_insertion.py
-
-      - name: Run cleanup script
-        run: |
-          python3 Sentiment/cleanup.py
 
       - name: Commit and push changes
         run: |

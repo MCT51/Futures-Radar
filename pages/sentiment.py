@@ -1,7 +1,7 @@
 """
 Sentiment timeline page — average sentiment scores over time.
 
-Reads from the articles database (Qingyu/qingyu/bbc_education_inclusion.db).
+Reads from the articles database (Wordcloud/wordcloud/bbc_education_inclusion.db).
 Groups scored articles by month and plots the averaged sentiment score as a
 line chart.  sentiment_score = positive − negative, range −1 (very negative)
 to +1 (very positive).
@@ -22,7 +22,7 @@ from dash import Input, Output, callback, dcc, html
 
 dash.register_page(__name__, path="/sentiment", name="Sentiment Timeline")
 
-_DB_PATH = Path(__file__).resolve().parents[1] / "Qingyu" / "qingyu" / "bbc_education_inclusion.db"
+_DB_PATH = Path(__file__).resolve().parents[1] / "Wordcloud" / "wordcloud" / "bbc_education_inclusion.db"
 
 _CHART_COLORS = [
     "#2980b9", "#27ae60", "#e67e22", "#8e44ad",
