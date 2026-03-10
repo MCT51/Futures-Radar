@@ -20,8 +20,9 @@ jobs:
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
-          git fetch origin main
-          git rebase origin/main
+          git lfs install
+          git lfs pull
+          
 
       - name: Set up Python
         uses: actions/setup-python@v5
