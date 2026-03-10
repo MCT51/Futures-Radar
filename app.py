@@ -15,7 +15,7 @@ import dash
 from dash import Dash, html, page_container, page_registry
 from flask import Response, jsonify, request
 
-from Qingyu.qingyu.wordcloud_server import (
+from Wordcloud.wordcloud.wordcloud_server import (
     HTML_PAGE as WORDCLOUD_HTML,
     add_blacklist_term,
     delete_blacklist_term,
@@ -31,7 +31,7 @@ app = Dash(__name__, use_pages=True)
 server = app.server
 
 _REPO_ROOT = Path(__file__).resolve().parent
-_WORDCLOUD_DB_PATH = _REPO_ROOT / "Qingyu" / "qingyu" / "bbc_education_inclusion.db"
+_WORDCLOUD_DB_PATH = _REPO_ROOT / "Wordcloud" / "wordcloud" / "bbc_education_inclusion.db"
 _WORDCLOUD_MIN_FREQUENCY = 2
 _WORDCLOUD_LIMIT = 100
 _WORDCLOUD_TREND_LOOKBACK_DAYS = 7

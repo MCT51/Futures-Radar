@@ -2,7 +2,7 @@ import csv
 import sqlite3
 
 
-DEFAULT_DB_PATH = "Qingyu/qingyu/bbc_education_inclusion.db"
+DEFAULT_DB_PATH = "Wordcloud/wordcloud/bbc_education_inclusion.db"
 DEFAULT_SENTIMENT_RESULTS_PATH = "Sentiment/sentiment_results.csv"
 
 

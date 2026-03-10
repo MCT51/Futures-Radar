@@ -28,11 +28,11 @@ jobs:
 
       - name: Run RSS ingestion
         run: |
-          python3 Qingyu/qingyu/bbc_inclusion_signals.py --term-mode baseline
+          python3 Wordcloud/wordcloud/bbc_inclusion_signals.py --term-mode baseline
 
       - name: Create article text files
         run: |
-          python3 Qingyu/qingyu/article_to_text.py
+          python3 Wordcloud/wordcloud/article_to_text.py
 
       - name: Run sentiment analysis
         env:
@@ -42,7 +42,7 @@ jobs:
 
       - name: Insert sentiment results into database
         run: |
-          python3 Qingyu/qingyu/sentiment_insertion.py
+          python3 Wordcloud/wordcloud/sentiment_insertion.py
 
       - name: Run cleanup script
         run: |
