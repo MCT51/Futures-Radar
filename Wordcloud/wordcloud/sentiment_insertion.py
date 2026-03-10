@@ -60,9 +60,20 @@ def insert_article_sentiment_into_db(
     finally:
         conn.close()
 
+def test_if_sentiment_insertion_works():
+    # This is a simple test function to check if the sentiment insertion works correctly.
+    # It will print out the sentiment scores for all articles in the database after insertion.
+    conn = sqlite3.connect(DEFAULT_DB_PATH)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT url, sentiment_score, sentiment_label FROM articles")
+        for row in cursor.fetchall():
+            print(f"URL: {row[0]}, Sentiment Score: {row[1]}, Sentiment Label: {row[2]}")
+    finally:
+        conn.close()
 
 def main():
-    insert_article_sentiment_into_db()
+    test_if_sentiment_insertion_works()  # Run this test before insertion to see initial state
 
 
 if __name__ == "__main__":

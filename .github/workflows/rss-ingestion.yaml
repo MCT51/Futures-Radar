@@ -16,6 +16,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Git
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git lfs install
+          git lfs pull
+          
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -41,9 +49,13 @@ jobs:
           python3 Sentiment/sentiment.py
 
       - name: Commit and push changes
-        run: |
-          git config user.name 'github-actions'
-          git config user.email 'github-actions@github.com'
+        run: | 
+          git lfs track "Wordcloud/wordcloud/bbc_education_inclusion.db"
+          git add .gitattributes
+          git commit -m "Enable Git LFS for large files"
+          git add Wordcloud/wordcloud/bbc_education_inclusion.db
+          git commit -m "Add bbc_education_inclusion.db via Git LFS"
+          
           git add .
           git diff --cached --quiet || git commit -m "update data [skip ci]"
           git push
