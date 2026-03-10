@@ -2,10 +2,9 @@ import os
 import sys
 import csv
 import glob
-import time
 import requests
 
-HF_API_URL = "https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment-latest"
+HF_API_URL = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment-latest"
 # Labels returned by this model
 LABELS = ["negative", "neutral", "positive"]
 # Maximum characters sent to the API per article (well within the token limit)
@@ -27,12 +26,6 @@ def analyse_text(text):
     for attempt in range(3):
         try:
             resp = requests.post(HF_API_URL, headers=_hf_headers(), json=payload, timeout=30)
-            if resp.status_code == 503:
-                # Model is loading — wait and retry
-                wait = resp.json().get("estimated_time", 20)
-                print(f"  Model loading, waiting {wait:.0f}s...")
-                time.sleep(min(wait, 30))
-                continue
             resp.raise_for_status()
             raw = resp.json()
             # Response shape: [[{"label": "negative", "score": 0.7}, ...]]
