@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Root-level DB copy (authoritative DB lives in Qingyu/qingyu/)
+/bbc_education_inclusion.db
+
+# Temporary sentiment working files (created & cleaned up by pipeline)
+Sentiment/articles/*.txt
