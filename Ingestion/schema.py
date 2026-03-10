@@ -238,7 +238,7 @@ class Schema:
 
         Rules:
         - Distribution variables: sum count columns.
-        - Quantitative scalar variables: mean of source values.
+        - Quantitative scalar variables: aggregation rule on the variable (sum by default).
         - Qualitative scalar variables: mode of source values (stored csv key).
         - Uses available source values (partial totals). If no usable source values exist,
           generated total remains NaN.
@@ -276,11 +276,19 @@ class Schema:
             sums = src[count_cols].sum(axis=0, min_count=1)
             return pd.DataFrame([{**{c: sums[c] for c in count_cols}}])
 
-        def _aggregate_quant_scalar(frame: pd.DataFrame, keep_cols: list[str], value_col: str) -> pd.DataFrame:
+        def _aggregate_quant_scalar(
+            frame: pd.DataFrame,
+            keep_cols: list[str],
+            value_col: str,
+            aggregation: str,
+        ) -> pd.DataFrame:
             src = frame[keep_cols + [value_col]].copy()
             src[value_col] = pd.to_numeric(src[value_col], errors="coerce")
+            agg_func = "sum" if aggregation == "sum" else "mean"
             if keep_cols:
-                return src.groupby(keep_cols, dropna=False, as_index=False)[value_col].mean()
+                return src.groupby(keep_cols, dropna=False, as_index=False)[value_col].agg(agg_func)
+            if aggregation == "sum":
+                return pd.DataFrame([{value_col: src[value_col].sum(min_count=1)}])
             return pd.DataFrame([{value_col: src[value_col].mean()}])
 
         def _pick_mode(series: pd.Series, ordered_keys: list[str]) -> object:
@@ -318,7 +326,7 @@ class Schema:
                     if isinstance(sv, DistributionSecondaryVariable):
                         current = _aggregate_distribution(base, keep_cols, sv.count_columns())
                     elif isinstance(sv, QuantitativeScalarSecondaryVariable):
-                        current = _aggregate_quant_scalar(base, keep_cols, sv.value_column)
+                        current = _aggregate_quant_scalar(base, keep_cols, sv.value_column, sv.aggregation)
                     elif isinstance(sv, QualitativeScalarSecondaryVariable):
                         current = _aggregate_qual_scalar(base, keep_cols, sv.value_column, sv.keys())
                     elif isinstance(sv, ScalarSecondaryVariable):

@@ -96,9 +96,21 @@ class ScalarSecondaryVariable(SecondaryVariable, ABC):
 
 @dataclass(frozen=True)
 class QuantitativeScalarSecondaryVariable(ScalarSecondaryVariable):
+    aggregation: str = "sum"
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.aggregation not in {"sum", "mean"}:
+            raise ValueError("QuantitativeScalarSecondaryVariable aggregation must be 'sum' or 'mean'")
+
     @property
     def variable_type(self) -> str:
         return "quantitative_scalar"
+
+    def to_dict(self) -> dict[str, Any]:
+        data = super().to_dict()
+        data["aggregation"] = self.aggregation
+        return data
 
 
 @dataclass(frozen=True)
@@ -244,7 +256,10 @@ def secondary_variable_from_dict(data: dict[str, Any]) -> SecondaryVariable:
         common["variable_name"] = data["variable_name"]
 
     if cls_name == "QuantitativeScalarSecondaryVariable":
-        return QuantitativeScalarSecondaryVariable(**common)
+        return QuantitativeScalarSecondaryVariable(
+            **common,
+            aggregation=data.get("aggregation", "sum"),
+        )
     if cls_name == "QualitativeScalarSecondaryVariable":
         return QualitativeScalarSecondaryVariable(
             **common,
