@@ -1,0 +1,10 @@
+pandas
+plotly
+dash
+feedparser
+nltk
+newspaper3k
+googlenewsdecoder
+lxml_html_clean
+gunicorn
+requests

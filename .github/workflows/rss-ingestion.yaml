@@ -1,0 +1,49 @@
+name: rss-ingestion
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs every day at midnight UTC
+  workflow_dispatch: # Manual triggering
+
+permissions:
+  contents: write
+
+jobs:
+  ingest-rss:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run RSS ingestion
+        run: |
+          python3 Wordcloud/wordcloud/bbc_inclusion_signals.py \
+            --term-mode baseline \
+            --db-path Wordcloud/wordcloud/bbc_education_inclusion.db \
+            --output Wordcloud/wordcloud/bbc_education_inclusion_signals.csv \
+            --discovered-output-csv Wordcloud/wordcloud/discovered_terms_preview.csv
+
+      - name: Run sentiment analysis
+        env:
+          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
+        run: |
+          python3 Sentiment/sentiment.py
+
+      - name: Commit and push changes
+        run: |
+          git config user.name 'github-actions'
+          git config user.email 'github-actions@github.com'
+          git add .
+          git diff --cached --quiet || git commit -m "update data [skip ci]"
+          git push
