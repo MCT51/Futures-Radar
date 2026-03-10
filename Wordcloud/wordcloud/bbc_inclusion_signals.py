@@ -24,7 +24,7 @@ from bs4 import BeautifulSoup
 DEFAULT_FEED_URLS = [
     "https://feeds.bbci.co.uk/news/uk/rss.xml",
     "https://feeds.bbci.co.uk/news/education/rss.xml",
-    #"https://news.google.com/rss/search?q=SEND;+education&hl=en-GB&gl=GB&ceid=GB:en",
+    "https://news.google.com/rss/search?q=SEND;+education&hl=en-GB&gl=GB&ceid=GB:en",
 ]
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_CSV = str(BASE_DIR / "bbc_education_inclusion_signals.csv")
@@ -144,7 +144,8 @@ def dedupe_items(items: List[Dict]) -> List[Dict]:
 
 def convert_google_news_link(google_news_url):
     try:
-        decoded_url = gnewsdecoder(google_news_url, interval=1)
+        print(f"Decoding Google News URL: {google_news_url}")
+        decoded_url = gnewsdecoder(google_news_url)
 
         if decoded_url.get("status"):
             return decoded_url["decoded_url"]

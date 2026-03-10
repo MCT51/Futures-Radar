@@ -10,12 +10,13 @@ DEFAULT_DB_PATH = str(BASE_DIR / "bbc_education_inclusion.db")
 DEFAULT_SENTIMENT_RESULTS_PATH = "Sentiment/sentiment_results1.csv"
 
 
-def create_txt_files_from_articles(articles: List[tuple]): ##(excerpt, year, month)
+def create_txt_files_from_articles(articles: List[tuple]): ##(excerpt, year, month, day)
     for article in articles:
         month = article[2]
         year = article[1]
+        day = article[3]
         id = article[0].replace("?", "()").replace("&", "(())").replace("/", "(_)").replace(":", "(__)") # Use the last part of the URL as an ID
-        filename = f"Sentiment/articles/{year}-{month}-{id}.txt"
+        filename = f"Sentiment/articles/{year}-{month}-{day}-{id}.txt"
         text = extract_article_text(article[0])
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(text)
@@ -38,9 +39,12 @@ def fetch_links_from_db(db_path: str = DEFAULT_DB_PATH) -> List[tuple]:
                 if len(parts) >= 2:
                     year = parts[0]
                     month = parts[1]
+                    if len(parts) >= 3:
+                        day = parts[2]
+                    else: continue  # If day is missing, skip this record as it doesn't fit the expected format
             else:  continue
             
-            records.append((row[0], year, month))  # row[0] is url
+            records.append((row[0], year, month, day))  # row[0] is url
     finally:
         conn.close()
     return records
