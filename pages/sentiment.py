@@ -2,7 +2,7 @@
 Sentiment timeline page — average sentiment scores over time.
 
 Reads from the articles database (Wordcloud/wordcloud/bbc_education_inclusion.db).
-Groups scored articles by month and plots the averaged sentiment score as a
+Groups scored articles by week (Mon–Sun) and plots the averaged sentiment score as a
 line chart.  sentiment_score = positive − negative, range −1 (very negative)
 to +1 (very positive).
 
@@ -51,7 +51,7 @@ def _get_terms() -> list[dict]:
 
 
 def _query_all() -> pd.DataFrame | None:
-    """Monthly average across all scored articles."""
+    """Weekly average across all scored articles."""
     if not _DB_PATH.exists():
         return None
     try:
@@ -70,7 +70,7 @@ def _query_all() -> pd.DataFrame | None:
         return None
     if df.empty:
         return None
-    return _monthly(df)
+    return _weekly(df)
 
 
 def _query_or(terms: list[str]) -> pd.DataFrame | None:
@@ -93,7 +93,7 @@ def _query_or(terms: list[str]) -> pd.DataFrame | None:
         conn.close()
     except Exception:
         return None
-    return _monthly(df) if not df.empty else None
+    return _weekly(df) if not df.empty else None
 
 
 def _query_and(terms: list[str]) -> pd.DataFrame | None:
@@ -118,11 +118,11 @@ def _query_and(terms: list[str]) -> pd.DataFrame | None:
         conn.close()
     except Exception:
         return None
-    return _monthly(df) if not df.empty else None
+    return _weekly(df) if not df.empty else None
 
 
 def _query_per_term(terms: list[str]) -> dict[str, pd.DataFrame]:
-    """One monthly DataFrame per term, for Compare mode."""
+    """One weekly DataFrame per term, for Compare mode."""
     result = {}
     try:
         conn = sqlite3.connect(_DB_PATH)
@@ -140,28 +140,31 @@ def _query_per_term(terms: list[str]) -> dict[str, pd.DataFrame]:
                 params=[term],
             )
             if not df.empty:
-                result[term] = _monthly(df)
+                result[term] = _weekly(df)
         conn.close()
     except Exception:
         pass
     return result
 
 
-def _monthly(df: pd.DataFrame) -> pd.DataFrame:
+def _weekly(df: pd.DataFrame) -> pd.DataFrame:
+    """Group by the Monday of each week and average sentiment_score."""
     df = df.copy()
-    df["month"] = df["published_date"].str[:7]
+    dates = pd.to_datetime(df["published_date"])
+    # Floor each date back to the Monday of its week
+    df["week"] = (dates - pd.to_timedelta(dates.dt.dayofweek, unit="d")).dt.strftime("%Y-%m-%d")
     return (
-        df.groupby("month")["sentiment_score"]
+        df.groupby("week")["sentiment_score"]
         .mean()
         .reset_index()
-        .sort_values("month")
+        .sort_values("week")
     )
 
 
 def _base_layout(fig: go.Figure) -> go.Figure:
     fig.add_hline(y=0, line_dash="dash", line_color="#aaa", line_width=1)
     fig.update_layout(
-        xaxis=dict(tickformat="%Y-%m", title="Month"),
+        xaxis=dict(tickformat="%d %b %Y", title="Week (starting Monday)"),
         yaxis=dict(range=[-1, 1], tickformat=".1f", title="← negative   |   positive →"),
         margin=dict(l=40, r=20, t=60, b=40),
         hovermode="x unified",
@@ -242,21 +245,21 @@ def update_chart(selected_terms, mode):
 
     # ── No filter: show all articles ─────────────────────────────────────────
     if not terms:
-        monthly = _query_all()
-        if monthly is None:
+        weekly = _query_all()
+        if weekly is None:
             return _empty_fig("Sentiment Timeline"), "No scored articles yet."
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=monthly["month"], y=monthly["sentiment_score"],
+            x=weekly["week"], y=weekly["sentiment_score"],
             mode="lines+markers", name="All topics",
             line=dict(color="#555"),
             marker=dict(
-                color=monthly["sentiment_score"].apply(lambda s: "#27ae60" if s >= 0 else "#c0392b"),
+                color=weekly["sentiment_score"].apply(lambda s: "#27ae60" if s >= 0 else "#c0392b"),
                 size=8,
             ),
         ))
-        fig.update_layout(title="Monthly Sentiment Score — All topics")
-        return _base_layout(fig), f"{len(monthly)} monthly data point(s) · all articles"
+        fig.update_layout(title="Weekly Sentiment Score — All topics")
+        return _base_layout(fig), f"{len(weekly)} weekly data point(s) · all articles"
 
     # ── Compare: one line per term ────────────────────────────────────────────
     if mode == "compare":
@@ -264,35 +267,35 @@ def update_chart(selected_terms, mode):
         if not per_term:
             return _empty_fig("Compare — no data"), "No data for selected topics."
         fig = go.Figure()
-        for i, (term, monthly) in enumerate(per_term.items()):
+        for i, (term, weekly) in enumerate(per_term.items()):
             colour = _CHART_COLORS[i % len(_CHART_COLORS)]
             fig.add_trace(go.Scatter(
-                x=monthly["month"], y=monthly["sentiment_score"],
+                x=weekly["week"], y=weekly["sentiment_score"],
                 mode="lines+markers", name=term,
                 line=dict(color=colour),
                 marker=dict(color=colour, size=7),
             ))
-        fig.update_layout(title="Monthly Sentiment — Compare topics")
+        fig.update_layout(title="Weekly Sentiment — Compare topics")
         status = f"Comparing: {', '.join(per_term.keys())}"
         return _base_layout(fig), status
 
     # ── OR / AND ──────────────────────────────────────────────────────────────
-    monthly = _query_or(terms) if mode == "or" else _query_and(terms)
-    if monthly is None:
+    weekly = _query_or(terms) if mode == "or" else _query_and(terms)
+    if weekly is None:
         mode_label = "any of" if mode == "or" else "all of"
         return _empty_fig(f"No articles found for {mode_label}: {', '.join(terms)}"), ""
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=monthly["month"], y=monthly["sentiment_score"],
+        x=weekly["week"], y=weekly["sentiment_score"],
         mode="lines+markers", name=", ".join(terms),
         line=dict(color="#2980b9"),
         marker=dict(
-            color=monthly["sentiment_score"].apply(lambda s: "#27ae60" if s >= 0 else "#c0392b"),
+            color=weekly["sentiment_score"].apply(lambda s: "#27ae60" if s >= 0 else "#c0392b"),
             size=8,
         ),
     ))
     mode_label = "any of" if mode == "or" else "all of"
-    fig.update_layout(title=f"Monthly Sentiment — {mode_label}: {', '.join(terms)}")
-    status = f"{len(monthly)} monthly data point(s) · {mode_label}: {', '.join(terms)}"
+    fig.update_layout(title=f"Weekly Sentiment — {mode_label}: {', '.join(terms)}")
+    status = f"{len(weekly)} weekly data point(s) · {mode_label}: {', '.join(terms)}"
     return _base_layout(fig), status
