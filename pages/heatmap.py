@@ -3,15 +3,18 @@ Heatmap page - dataset explorer built on StructuredData output.
 """
 
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import dash
 import pandas as pd
 import plotly.express as px
-from dash import Input, Output, State, callback, dcc, html
+from dash import ALL, Input, Output, State, callback, dcc, html
 from dash.exceptions import PreventUpdate
 
 from Ingestion.structured_data import StructuredData
+from Ingestion.primary_variable import TOTAL_VALUE
+from Ingestion.schema import Schema
 
 
 dash.register_page(__name__, path="/heatmap", name="Heatmap")
@@ -45,7 +48,16 @@ def _dataset_config(dataset_value: str | None) -> dict[str, object] | None:
     path = Path(dataset_value)
     if not path.exists():
         return None
-    return _build_dataset_config(path)
+    return _build_dataset_config_cached(str(path.resolve()))
+
+
+def _dataset_meta(dataset_value: str | None) -> dict[str, object] | None:
+    if not dataset_value:
+        return None
+    path = Path(dataset_value)
+    if not path.exists():
+        return None
+    return _build_dataset_meta_cached(str(path.resolve()))
 
 
 if not _geo_candidates:
@@ -73,14 +85,19 @@ else:
                     return opt["value"]
         return None
 
-    def _build_dataset_config(json_path: Path) -> dict[str, object] | None:
+    def _primary_value_options(cfg: dict[str, object], column_name: str, *, include_total: bool = True) -> list[dict[str, str]]:
+        pv_map = cfg["primary_display_map"].get(column_name, {})  # type: ignore[index]
+        full = [*pv_map.keys(), TOTAL_VALUE]
+        if not include_total:
+            full = [v for v in full if v != TOTAL_VALUE]
+        return [{"label": pv_map.get(v, v), "value": v} for v in full]
+
+    def _build_dataset_meta(json_path: Path) -> dict[str, object] | None:
         try:
-            structured = StructuredData.load(json_path)
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            schema = Schema.from_dict(payload["schema"])
         except Exception:
             return None
-
-        df = structured.dataframe.copy()
-        schema = structured.schema
 
         if not schema.primary_variables or not schema.secondary_variables:
             return None
@@ -137,24 +154,8 @@ else:
             return None
 
         default_secondary = secondary_options[0]["value"]
-
-        def _default_category(var_name: str | None) -> str | None:
-            if not var_name:
-                return None
-            info = secondary_meta.get(var_name)
-            if not info:
-                return None
-            categories = info.get("categories") or []
-            return categories[0]["value"] if categories else None
-
-        def _default_metric(var_name: str | None) -> str | None:
-            if not var_name:
-                return None
-            info = secondary_meta.get(var_name)
-            if not info:
-                return None
-            metric_opts = info.get("metric_options") or []
-            return metric_opts[0]["value"] if metric_opts else None
+        default_category = (secondary_meta.get(default_secondary, {}).get("categories") or [None])[0]
+        default_metric = (secondary_meta.get(default_secondary, {}).get("metric_options") or [None])[0]
 
         if default_geo and _has_non_identity(primary_display_map.get(default_geo, {})):
             default_display_choice = f"__schema__{default_geo}"
@@ -164,7 +165,6 @@ else:
         return {
             "path": str(json_path),
             "label": str(json_path.relative_to(_output_dir)) if json_path.is_relative_to(_output_dir) else json_path.name,
-            "df": df,
             "primary_options": primary_options,
             "display_schema_options": display_schema_options,
             "secondary_options": secondary_options,
@@ -173,10 +173,30 @@ else:
             "default_display_choice": default_display_choice,
             "default_time": default_time,
             "default_secondary": default_secondary,
-            "default_category": _default_category(default_secondary),
-            "default_metric": _default_metric(default_secondary),
+            "default_category": default_category["value"] if default_category else None,
+            "default_metric": default_metric["value"] if default_metric else None,
             "primary_display_map": primary_display_map,
         }
+
+    def _build_dataset_config(json_path: Path) -> dict[str, object] | None:
+        try:
+            structured = StructuredData.load(json_path)
+        except Exception:
+            return None
+
+        df = structured.dataframe.copy()
+        meta = _build_dataset_meta(json_path)
+        if not meta:
+            return None
+        return {**meta, "df": df}
+
+    @lru_cache(maxsize=32)
+    def _build_dataset_config_cached(json_path_str: str) -> dict[str, object] | None:
+        return _build_dataset_config(Path(json_path_str))
+
+    @lru_cache(maxsize=32)
+    def _build_dataset_meta_cached(json_path_str: str) -> dict[str, object] | None:
+        return _build_dataset_meta(Path(json_path_str))
 
     _DATASET_OPTIONS, _DEFAULT_DATASET = _list_dataset_options()
 
@@ -199,26 +219,24 @@ else:
             style={"padding": "16px"},
         )
     else:
-        _INITIAL_CFG = _dataset_config(_DEFAULT_DATASET)
-        assert _INITIAL_CFG is not None
-        initial_cat_style = {"marginBottom": "16px"} if _INITIAL_CFG.get("default_category") else {"display": "none"}  # type: ignore[arg-type]
+        _INITIAL_META = _dataset_meta(_DEFAULT_DATASET)
+        assert _INITIAL_META is not None
+        initial_cat_style = {"marginBottom": "16px"} if _INITIAL_META.get("default_category") else {"display": "none"}  # type: ignore[arg-type]
         initial_metric_style = (
             {"marginBottom": "16px"}
-            if (_INITIAL_CFG.get("default_metric") and _INITIAL_CFG.get("default_metric") != "value")
+            if (_INITIAL_META.get("default_metric") and _INITIAL_META.get("default_metric") != "value")
                 else {"display": "none"}
         )
 
         def _initial_time_dropdown(cfg):
             time_col = cfg["default_time"]
-            if not time_col or time_col not in cfg["df"].columns:  # type: ignore[index]
+            if not time_col:
                 return [], None
-            series = cfg["df"][time_col].astype(str)  # type: ignore[index]
-            values = sorted(series.dropna().unique())
-            options = [{"label": v, "value": v} for v in values]
-            default_value = values[-1] if values else None
+            options = _primary_value_options(cfg, time_col, include_total=False)
+            default_value = options[-1]["value"] if options else None
             return options, default_value
 
-        _INITIAL_YEAR_OPTIONS, _INITIAL_YEAR_VALUE = _initial_time_dropdown(_INITIAL_CFG)
+        _INITIAL_YEAR_OPTIONS, _INITIAL_YEAR_VALUE = _initial_time_dropdown(_INITIAL_META)
 
         layout = html.Div(
             [
@@ -247,8 +265,8 @@ else:
                         html.Label("Time column"),
                         dcc.Dropdown(
                             id="heatmap-time-column",
-                            options=_INITIAL_CFG["primary_options"],  # type: ignore[index]
-                            value=_INITIAL_CFG["default_time"],  # type: ignore[index]
+                            options=_INITIAL_META["primary_options"],  # type: ignore[index]
+                            value=_INITIAL_META["default_time"],  # type: ignore[index]
                             clearable=False,
                             style={"width": "320px"},
                         ),
@@ -273,8 +291,8 @@ else:
                         html.Label("Location code column (matches GeoJSON IDs)"),
                         dcc.Dropdown(
                             id="heatmap-geo-code-column",
-                            options=_INITIAL_CFG["primary_options"],  # type: ignore[index]
-                            value=_INITIAL_CFG["default_geo"],  # type: ignore[index]
+                            options=_INITIAL_META["primary_options"],  # type: ignore[index]
+                            value=_INITIAL_META["default_geo"],  # type: ignore[index]
                             clearable=False,
                             style={"width": "420px"},
                         ),
@@ -286,21 +304,22 @@ else:
                         html.Label("Location display column"),
                         dcc.Dropdown(
                             id="heatmap-display-column",
-                            options=(_INITIAL_CFG["primary_options"] + _INITIAL_CFG["display_schema_options"]),  # type: ignore[index]
-                            value=_INITIAL_CFG["default_display_choice"],  # type: ignore[index]
+                            options=(_INITIAL_META["primary_options"] + _INITIAL_META["display_schema_options"]),  # type: ignore[index]
+                            value=_INITIAL_META["default_display_choice"],  # type: ignore[index]
                             clearable=False,
                             style={"width": "420px"},
                         ),
                     ],
                     style={"marginBottom": "16px"},
                 ),
+                html.Div(id="heatmap-primary-filter-container", style={"marginBottom": "16px"}),
                 html.H4("Secondary variable"),
                 html.Div(
                     [
                         dcc.Dropdown(
                             id="heatmap-secondary-variable",
-                            options=_INITIAL_CFG["secondary_options"],  # type: ignore[index]
-                            value=_INITIAL_CFG["default_secondary"],  # type: ignore[index]
+                            options=_INITIAL_META["secondary_options"],  # type: ignore[index]
+                            value=_INITIAL_META["default_secondary"],  # type: ignore[index]
                             clearable=False,
                             style={"width": "420px"},
                         ),
@@ -312,8 +331,8 @@ else:
                         html.Label("Category"),
                         dcc.Dropdown(
                             id="heatmap-secondary-category",
-                            options=_INITIAL_CFG["secondary_meta"].get(_INITIAL_CFG["default_secondary"], {}).get("categories", []),  # type: ignore[index]
-                            value=_INITIAL_CFG["default_category"],  # type: ignore[index]
+                            options=_INITIAL_META["secondary_meta"].get(_INITIAL_META["default_secondary"], {}).get("categories", []),  # type: ignore[index]
+                            value=_INITIAL_META["default_category"],  # type: ignore[index]
                             clearable=False,
                             style={"width": "420px"},
                         ),
@@ -326,8 +345,8 @@ else:
                         html.Label("Metric"),
                         dcc.Dropdown(
                             id="heatmap-metric-type",
-                            options=_INITIAL_CFG["secondary_meta"].get(_INITIAL_CFG["default_secondary"], {}).get("metric_options", []),  # type: ignore[index]
-                            value=_INITIAL_CFG["default_metric"],  # type: ignore[index]
+                            options=_INITIAL_META["secondary_meta"].get(_INITIAL_META["default_secondary"], {}).get("metric_options", []),  # type: ignore[index]
+                            value=_INITIAL_META["default_metric"],  # type: ignore[index]
                             clearable=False,
                             style={"width": "420px"},
                         ),
@@ -336,7 +355,7 @@ else:
                     style=initial_metric_style,
                 ),
                 dcc.Graph(id="heatmap-choropleth", style={"height": "80vh"}),
-                html.Small(id="heatmap-data-caption", children=f"Data: {_INITIAL_CFG['label']} - Boundaries: {_BOUNDARY_PATH.name}"),  # type: ignore[index]
+                html.Small(id="heatmap-data-caption", children=f"Data: {_INITIAL_META['label']} - Boundaries: {_BOUNDARY_PATH.name}"),  # type: ignore[index]
             ],
             style={"padding": "16px"},
         )
@@ -348,6 +367,8 @@ else:
             State("heatmap-dataset", "value"),
         )
         def refresh_dataset_dropdown(_, current_value):
+            _build_dataset_config_cached.cache_clear()
+            _build_dataset_meta_cached.cache_clear()
             options, default_value = _list_dataset_options()
             option_values = {opt["value"] for opt in options}
             value = current_value if current_value in option_values else default_value
@@ -372,7 +393,7 @@ else:
             Input("heatmap-dataset", "value"),
         )
         def refresh_dataset(dataset_value: str | None):
-            cfg = _dataset_config(dataset_value)
+            cfg = _dataset_meta(dataset_value)
             if not cfg:
                 raise PreventUpdate
 
@@ -417,15 +438,60 @@ else:
             Input("heatmap-time-column", "value"),
         )
         def sync_time_values(dataset_value: str | None, time_column: str | None):
-            cfg = _dataset_config(dataset_value)
-            if not cfg or not time_column or time_column not in cfg["df"].columns:  # type: ignore[index]
+            cfg = _dataset_meta(dataset_value)
+            if not cfg or not time_column:
                 return [], None
-
-            series = cfg["df"][time_column].astype(str)  # type: ignore[index]
-            values = sorted(series.dropna().unique())
-            options = [{"label": v, "value": v} for v in values]
-            default_value = values[-1] if values else None
+            options = _primary_value_options(cfg, time_column, include_total=False)
+            default_value = options[-1]["value"] if options else None
             return options, default_value
+
+        @callback(
+            Output("heatmap-primary-filter-container", "children"),
+            Input("heatmap-dataset", "value"),
+            Input("heatmap-time-column", "value"),
+            Input("heatmap-geo-code-column", "value"),
+        )
+        def sync_primary_filters(dataset_value: str | None, time_column: str | None, geo_code_col: str | None):
+            cfg = _dataset_meta(dataset_value)
+            if not cfg:
+                return []
+
+            excluded = {time_column, geo_code_col}
+            filter_columns = [
+                opt["value"]
+                for opt in cfg["primary_options"]  # type: ignore[index]
+                if opt["value"] not in excluded
+            ]
+
+            if not filter_columns:
+                return []
+
+            children = [html.H4("Other primary filters")]
+            for col in filter_columns:
+                options = _primary_value_options(cfg, col)
+                value = next((opt["value"] for opt in options if opt["value"] == TOTAL_VALUE), None)
+                if value is None and options:
+                    value = options[0]["value"]
+                label = next(
+                    (opt["label"] for opt in cfg["primary_options"] if opt["value"] == col),  # type: ignore[index]
+                    col,
+                )
+                children.append(
+                    html.Div(
+                        [
+                            html.Label(label),
+                            dcc.Dropdown(
+                                id={"type": "heatmap-primary-filter", "column": col},
+                                options=options,
+                                value=value,
+                                clearable=False,
+                                style={"width": "320px"},
+                            ),
+                        ],
+                        style={"marginBottom": "12px"},
+                    )
+                )
+            return children
 
         @callback(
             Output("heatmap-secondary-category", "options", allow_duplicate=True),
@@ -439,7 +505,7 @@ else:
             prevent_initial_call=True,
         )
         def sync_secondary_controls(variable_name: str | None, dataset_value: str | None):
-            cfg = _dataset_config(dataset_value)
+            cfg = _dataset_meta(dataset_value)
             hidden = {"display": "none"}
             if not cfg or not variable_name:
                 return [], None, hidden, [], None, hidden
@@ -465,8 +531,21 @@ else:
             Input("heatmap-secondary-variable", "value"),
             Input("heatmap-secondary-category", "value"),
             Input("heatmap-metric-type", "value"),
+            Input({"type": "heatmap-primary-filter", "column": ALL}, "value"),
+            State({"type": "heatmap-primary-filter", "column": ALL}, "id"),
         )
-        def update_map(dataset_value, selected_year, time_column, geo_code_col, display_col, secondary_var, category_value, metric_value):
+        def update_map(
+            dataset_value,
+            selected_year,
+            time_column,
+            geo_code_col,
+            display_col,
+            secondary_var,
+            category_value,
+            metric_value,
+            filter_values,
+            filter_ids,
+        ):
             cfg = _dataset_config(dataset_value)
             if not cfg or not selected_year or not time_column or not geo_code_col or not secondary_var:
                 raise PreventUpdate
@@ -483,6 +562,11 @@ else:
                 raise PreventUpdate
 
             d = df[df[time_column].astype(str) == str(selected_year)].copy()
+            for filter_id, filter_value in zip(filter_ids, filter_values):
+                col = filter_id.get("column")
+                if not col or col not in d.columns or filter_value is None:
+                    continue
+                d = d[d[col].astype(str).str.strip() == str(filter_value)]
             d[geo_code_col] = d[geo_code_col].astype(str).str.strip()
             d = d[d[geo_code_col].str.upper() != "TOTAL"]
             d[metric_col] = pd.to_numeric(d[metric_col], errors="coerce")
