@@ -907,7 +907,7 @@ def validate_database(db_path: Path) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Interactive word cloud server for education-inclusion term stats.")
-    parser.add_argument("--db-path", default="bbc_education_inclusion.db", help="Path to SQLite DB")
+    parser.add_argument("--db-path", default="/Wordcloud/wordcloud/bbc_education_inclusion.db", help="Path to SQLite DB")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind")
     parser.add_argument("--port", type=int, default=8765, help="Port to bind")
     parser.add_argument("--min-frequency", type=int, default=2, help="Minimum total term frequency for cloud")

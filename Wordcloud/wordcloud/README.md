@@ -51,7 +51,7 @@ python3 bbc_inclusion_signals.py --term-mode baseline --temporal-lookback-days 7
 ## 2) Run the Word Cloud App
 
 ```bash
-python3 wordcloud_server.py --db-path bbc_education_inclusion.db --port 8765  \ --trend-lookback-days 7 \
+python3 wordcloud_server.py --db-path /Wordcloud/wordcloud/bbc_education_inclusion.db --port 8765  \ --trend-lookback-days 7 \
 --trend-limit 12
 ```
 

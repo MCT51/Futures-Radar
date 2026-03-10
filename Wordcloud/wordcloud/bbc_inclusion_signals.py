@@ -26,8 +26,8 @@ DEFAULT_FEED_URLS = [
     "https://feeds.bbci.co.uk/news/education/rss.xml",
     #"https://news.google.com/rss/search?q=SEND;+education&hl=en-GB&gl=GB&ceid=GB:en",
 ]
-DEFAULT_OUTPUT_CSV = "bbc_education_inclusion_signals.csv"
-DEFAULT_DB_PATH = "bbc_education_inclusion.db"
+DEFAULT_OUTPUT_CSV = "/Wordcloud/wordcloud/bbc_education_inclusion_signals.csv"
+DEFAULT_DB_PATH = "/Wordcloud/wordcloud/bbc_education_inclusion.db"
 REQUEST_TIMEOUT = 20
 MAX_EXCERPT_CHARS = 1200
 MAX_SUMMARY_CHARS = 750
