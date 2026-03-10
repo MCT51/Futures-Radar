@@ -30,23 +30,11 @@ jobs:
         run: |
           python3 Wordcloud/wordcloud/bbc_inclusion_signals.py --term-mode baseline
 
-      - name: Create article text files
-        run: |
-          python3 Wordcloud/wordcloud/article_to_text.py
-
       - name: Run sentiment analysis
         env:
           HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
         run: |
           python3 Sentiment/sentiment.py
-
-      - name: Insert sentiment results into database
-        run: |
-          python3 Wordcloud/wordcloud/sentiment_insertion.py
-
-      - name: Run cleanup script
-        run: |
-          python3 Sentiment/cleanup.py
 
       - name: Commit and push changes
         run: |

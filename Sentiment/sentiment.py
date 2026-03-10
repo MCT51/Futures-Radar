@@ -1,14 +1,33 @@
+"""
+Sentiment analysis pipeline — reads unscored articles from the database,
+calls the HuggingFace Inference API, and writes scores back to the DB.
+
+Usage:
+    python3 Sentiment/sentiment.py
+
+Environment:
+    HF_API_TOKEN  — HuggingFace API token (optional but strongly recommended to
+                    avoid rate-limits; set as a GitHub Actions / Render secret)
+"""
+
 import os
+import sqlite3
 import sys
-import csv
-import glob
+import time
+
 import requests
 
 HF_API_URL = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment-latest"
-# Labels returned by this model
-LABELS = ["negative", "neutral", "positive"]
 # Maximum characters sent to the API per article (well within the token limit)
 MAX_CHARS = 1024
+
+# Path to the database, relative to this script
+_DB_PATH = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "Wordcloud", "wordcloud", "bbc_education_inclusion.db",
+    )
+)
 
 
 def _hf_headers():
@@ -16,16 +35,19 @@ def _hf_headers():
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 
-def analyse_text(text):
+def analyse_text(text: str) -> dict | None:
     """Call the HuggingFace Inference API and return sentiment scores.
 
-    Returns a dict with keys: negative, neutral, positive, top_label, top_score.
-    Returns None on failure.
+    Returns a dict with keys: negative, neutral, positive, top_label,
+    top_score, sentiment_score (= positive − negative, range −1 to +1).
+    Returns None on failure after 3 attempts.
     """
     payload = {"inputs": text[:MAX_CHARS]}
     for attempt in range(3):
         try:
-            resp = requests.post(HF_API_URL, headers=_hf_headers(), json=payload, timeout=30)
+            resp = requests.post(
+                HF_API_URL, headers=_hf_headers(), json=payload, timeout=30
+            )
             resp.raise_for_status()
             raw = resp.json()
             # Response shape: [[{"label": "negative", "score": 0.7}, ...]]
@@ -41,73 +63,78 @@ def analyse_text(text):
                 "positive": pos,
                 "top_label": top_label,
                 "top_score": scores[top_label],
+                "sentiment_score": pos - neg,  # directional: −1 to +1
             }
         except Exception as exc:
             print(f"  API error (attempt {attempt + 1}): {exc}")
-            time.sleep(5)
+            if attempt < 2:
+                time.sleep(5)
     return None
 
 
-def analyse_file(filepath):
-    """Read a .txt file and return its sentiment analysis."""
-    with open(filepath, "r", encoding="utf-8") as f:
-        text = f.read().strip()
-    if not text:
-        return None
-    result = analyse_text(text)
-    if result:
-        result["file"] = os.path.basename(filepath)
-    return result
-
-
 def main():
-    if len(sys.argv) > 1:
-        folder = sys.argv[1]
-    else:
-        folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "articles")
-
-    if not os.path.isdir(folder):
-        print(f"Error: folder '{folder}' does not exist.")
-        print("Usage: python sentiment.py [folder_path]")
+    if not os.path.exists(_DB_PATH):
+        print(f"Error: database not found at '{_DB_PATH}'")
         sys.exit(1)
 
-    txt_files = sorted(glob.glob(os.path.join(folder, "*.txt")))
-    if not txt_files:
-        print(f"No .txt files found in '{folder}'.")
-        sys.exit(0)
+    conn = sqlite3.connect(_DB_PATH)
+    cursor = conn.cursor()
 
-    print(f"Analysing {len(txt_files)} file(s) via HuggingFace Inference API...\n")
+    # Fetch articles that haven't been scored yet, using excerpt as the text
+    # source (falls back to summary if excerpt is empty)
+    rows = cursor.execute(
+        """
+        SELECT article_id, url,
+               COALESCE(NULLIF(TRIM(excerpt), ''), NULLIF(TRIM(summary), ''), title) AS text_source
+        FROM   articles
+        WHERE  sentiment_score IS NULL
+          AND  COALESCE(NULLIF(TRIM(excerpt), ''), NULLIF(TRIM(summary), ''), title) IS NOT NULL
+        """
+    ).fetchall()
 
-    results = []
-    for filepath in txt_files:
-        result = analyse_file(filepath)
+    if not rows:
+        print("No unscored articles found — nothing to do.")
+        conn.close()
+        return
+
+    print(f"Analysing {len(rows)} unscored article(s) via HuggingFace Inference API...\n")
+
+    scored = 0
+    for article_id, url, text_source in rows:
+        result = analyse_text(text_source)
         if result is None:
-            print(f"  {os.path.basename(filepath)}: (empty or API error, skipped)")
+            print(f"  [{article_id}] FAILED — skipped")
             continue
-        results.append(result)
+
+        cursor.execute(
+            """
+            UPDATE articles
+            SET sentiment_score    = ?,
+                sentiment_label    = ?,
+                sentiment_negative = ?,
+                sentiment_neutral  = ?,
+                sentiment_positive = ?
+            WHERE article_id = ?
+            """,
+            (
+                result["sentiment_score"],
+                result["top_label"],
+                result["negative"],
+                result["neutral"],
+                result["positive"],
+                article_id,
+            ),
+        )
+        scored += 1
         print(
-            f"  {result['file']}: {result['top_label']} "
-            f"(neg={result['negative']:.3f}, neu={result['neutral']:.3f}, "
-            f"pos={result['positive']:.3f})"
+            f"  [{article_id}] {result['top_label']:8s}  "
+            f"neg={result['negative']:.3f}  neu={result['neutral']:.3f}  "
+            f"pos={result['positive']:.3f}  score={result['sentiment_score']:+.3f}"
         )
 
-    if results:
-        output_csv = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sentiment_results.csv")
-        fieldnames = ["file", "chunk", "top_label", "top_score", "negative", "neutral", "positive"]
-        with open(output_csv, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for result in results:
-                writer.writerow({
-                    "file": result["file"],
-                    "chunk": "avg",
-                    "top_label": result["top_label"],
-                    "top_score": result["top_score"],
-                    "negative": result["negative"],
-                    "neutral": result["neutral"],
-                    "positive": result["positive"],
-                })
-        print(f"\nResults saved to {output_csv}")
+    conn.commit()
+    conn.close()
+    print(f"\nDone — {scored}/{len(rows)} article(s) scored and saved to database.")
 
 
 if __name__ == "__main__":
