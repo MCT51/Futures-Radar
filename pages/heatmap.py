@@ -1,9 +1,5 @@
 """
-Heatmap page — FSM eligibility choropleth by local authority.
-
-Uses StructuredData output:
-  Ingestion/test/output/fsm_ethnicity_structured.json
-  Ingestion/test/output/fsm_ethnicity_structured.csv
+Heatmap page - dataset explorer built on StructuredData output.
 """
 
 import json
@@ -12,14 +8,14 @@ from pathlib import Path
 import dash
 import pandas as pd
 import plotly.express as px
-from dash import Input, Output, callback, dcc, html
+from dash import Input, Output, State, callback, dcc, html
+from dash.exceptions import PreventUpdate
 
 from Ingestion.structured_data import StructuredData
-from Ingestion.schema import Schema
+
 
 dash.register_page(__name__, path="/heatmap", name="Heatmap")
 
-# ── Locate data files ──────────────────────────────────────────────────────
 _HEATMAP_DIR = Path(__file__).resolve().parents[1] / "Heatmap"
 _BASE_DIR = _HEATMAP_DIR.parent
 
@@ -27,145 +23,503 @@ _output_dir = _BASE_DIR / "Ingestion" / "test" / "output"
 _json_candidates = list(_output_dir.rglob("fsm_ethnicity_structured.json"))
 _geo_candidates = list(_HEATMAP_DIR.glob("*.geojson")) + list(_BASE_DIR.rglob("*.geojson"))
 
-# ── Error layout if data is missing ─────────────────────────────────────────
-if not _json_candidates or not _geo_candidates:
+
+def _dataset_label(path: Path) -> str:
+    try:
+        return str(path.relative_to(_output_dir))
+    except ValueError:
+        return path.name
+
+
+def _list_dataset_options() -> tuple[list[dict[str, str]], str | None]:
+    options: list[dict[str, str]] = []
+    for candidate in sorted(_output_dir.rglob("*_structured.json")):
+        options.append({"label": _dataset_label(candidate), "value": str(candidate)})
+    default = options[0]["value"] if options else None
+    return options, default
+
+
+def _dataset_config(dataset_value: str | None) -> dict[str, object] | None:
+    if not dataset_value:
+        return None
+    path = Path(dataset_value)
+    if not path.exists():
+        return None
+    return _build_dataset_config(path)
+
+
+if not _geo_candidates:
     layout = html.Div(
         [
             html.H2("Heatmap"),
             html.P(
-                "Could not find required files: fsm_ethnicity_structured.json and/or boundary GeoJSON.",
+                "Could not find required boundary GeoJSON.",
                 style={"color": "#c0392b"},
             ),
-            html.P(f"Looked for JSON under: {_output_dir}"),
         ],
         style={"padding": "16px"},
     )
-
 else:
-    _STRUCTURED_JSON = _json_candidates[0]
     _BOUNDARY_PATH = _geo_candidates[0]
+    with open(_BOUNDARY_PATH, "r", encoding="utf-8") as f:
+        _geojson = json.load(f)
 
-    # ── Load structured data ───────────────────────────────────────────────
-    structured = StructuredData.load(_STRUCTURED_JSON)
-    df = structured.dataframe.copy()
-    schema = structured.schema  # available if you want display labels, etc.
+    CODE_PROP = "CTYUA17CD"
 
-    # Ensure consistent types/formatting
-    df["year"] = df["year"].astype(str)
-    df["location_code"] = df["location_code"].astype(str).str.strip().str.upper()
+    def _guess_primary_column(options: list[dict[str, str]], keywords: list[str]) -> str | None:
+        for kw in keywords:
+            for opt in options:
+                if kw in opt["value"].lower() or kw in opt["label"].lower():
+                    return opt["value"]
+        return None
 
-    # Pick the FSM eligible percent column from the schema keys
-    # (this matches the csv_dict key in the schema JSON)
-    FSM_ELIGIBLE_KEY = "known_to_be_eligible_for_free_school_meals"
-    eligible_percent_col = f"{FSM_ELIGIBLE_KEY}_percent"
-    eligible_count_col = f"{FSM_ELIGIBLE_KEY}_count"
+    def _build_dataset_config(json_path: Path) -> dict[str, object] | None:
+        try:
+            structured = StructuredData.load(json_path)
+        except Exception:
+            return None
 
-    not_eligible_key = "not_known_to_be_eligible_for_free_school_meals"
-    not_eligible_count_col = f"{not_eligible_key}_count"
+        df = structured.dataframe.copy()
+        schema = structured.schema
 
-    # Basic sanity check: if columns missing, show a friendly error
-    required_cols = {"year", "location_code", eligible_percent_col, eligible_count_col, not_eligible_count_col}
-    missing = required_cols - set(df.columns)
-    if missing:
+        if not schema.primary_variables or not schema.secondary_variables:
+            return None
+
+        primary_options: list[dict[str, str]] = []
+        display_schema_options: list[dict[str, str]] = []
+        primary_display_map: dict[str, dict[str, str]] = {}
+
+        def _has_non_identity(mapping: dict[str, str]) -> bool:
+            return any(raw != disp for raw, disp in mapping.items())
+
+        for pv in schema.primary_variables:
+            label = pv.title or pv.column_name
+            if pv.column_name not in label:
+                label = f"{label} ({pv.column_name})"
+            primary_options.append({"label": label, "value": pv.column_name})
+            normalized_map = {str(k): str(v) for k, v in pv.csv_to_display.items()}
+            primary_display_map[pv.column_name] = normalized_map
+            if _has_non_identity(normalized_map):
+                display_schema_options.append(
+                    {
+                        "label": f"{label} (schema labels)",
+                        "value": f"__schema__{pv.column_name}",
+                    }
+                )
+
+        default_primary = primary_options[0]["value"] if primary_options else None
+        default_geo = _guess_primary_column(primary_options, ["code", "id"]) or default_primary
+        default_display = _guess_primary_column(primary_options, ["name", "label"]) or default_geo
+        default_time = _guess_primary_column(primary_options, ["year", "time", "period"]) or default_primary
+
+        secondary_meta: dict[str, dict[str, object]] = {}
+        secondary_options: list[dict[str, str]] = []
+        for var in schema.secondary_variables:
+            info: dict[str, object] = {
+                "variable_name": var.variable_name,
+                "display_name": var.display_name,
+                "type": var.variable_type,
+                "categories": [{"label": label, "value": key} for key, label in var.csv_dict.items()],
+                "value_column": getattr(var, "value_column", None),
+            }
+            if var.variable_type in ("qualitative_dist", "quantitative_dist"):
+                info["metric_options"] = [
+                    {"label": "Percent", "value": "percent"},
+                    {"label": "Count", "value": "count"},
+                ]
+            else:
+                info["categories"] = []
+                info["metric_options"] = [{"label": var.display_name, "value": "value"}]
+            secondary_meta[var.variable_name] = info
+            secondary_options.append({"label": var.display_name, "value": var.variable_name})
+
+        if not secondary_options:
+            return None
+
+        default_secondary = secondary_options[0]["value"]
+
+        def _default_category(var_name: str | None) -> str | None:
+            if not var_name:
+                return None
+            info = secondary_meta.get(var_name)
+            if not info:
+                return None
+            categories = info.get("categories") or []
+            return categories[0]["value"] if categories else None
+
+        def _default_metric(var_name: str | None) -> str | None:
+            if not var_name:
+                return None
+            info = secondary_meta.get(var_name)
+            if not info:
+                return None
+            metric_opts = info.get("metric_options") or []
+            return metric_opts[0]["value"] if metric_opts else None
+
+        if default_geo and _has_non_identity(primary_display_map.get(default_geo, {})):
+            default_display_choice = f"__schema__{default_geo}"
+        else:
+            default_display_choice = default_display
+
+        return {
+            "path": str(json_path),
+            "label": str(json_path.relative_to(_output_dir)) if json_path.is_relative_to(_output_dir) else json_path.name,
+            "df": df,
+            "primary_options": primary_options,
+            "display_schema_options": display_schema_options,
+            "secondary_options": secondary_options,
+            "secondary_meta": secondary_meta,
+            "default_geo": default_geo,
+            "default_display_choice": default_display_choice,
+            "default_time": default_time,
+            "default_secondary": default_secondary,
+            "default_category": _default_category(default_secondary),
+            "default_metric": _default_metric(default_secondary),
+            "primary_display_map": primary_display_map,
+        }
+
+    _DATASET_OPTIONS, _DEFAULT_DATASET = _list_dataset_options()
+
+    def _metric_column(cfg: dict[str, object], variable_name: str, category_value: str | None, metric_value: str | None) -> tuple[str | None, str]:
+        info = cfg["secondary_meta"].get(variable_name, {})  # type: ignore[index]
+        var_type = info.get("type")
+        if var_type in ("qualitative_dist", "quantitative_dist"):
+            if not category_value:
+                return None, "percent"
+            metric_suffix = "percent" if metric_value == "percent" else "count"
+            return f"{category_value}_{metric_suffix}", metric_suffix
+        return info.get("value_column"), "value"
+
+    if not _DATASET_OPTIONS:
         layout = html.Div(
             [
                 html.H2("Heatmap"),
-                html.P("Structured CSV does not contain expected columns:", style={"color": "#c0392b"}),
-                html.Pre("\n".join(sorted(missing))),
-                html.P(f"Loaded: {_STRUCTURED_JSON.name}"),
+                html.P("No valid structured datasets found under Ingestion/test/output.", style={"color": "#c0392b"}),
             ],
             style={"padding": "16px"},
         )
     else:
-        # Compute a headcount for hover (eligible + not eligible)
-        df["headcount"] = pd.to_numeric(df[eligible_count_col], errors="coerce") + pd.to_numeric(
-            df[not_eligible_count_col], errors="coerce"
+        _INITIAL_CFG = _dataset_config(_DEFAULT_DATASET)
+        assert _INITIAL_CFG is not None
+        initial_cat_style = {"marginBottom": "16px"} if _INITIAL_CFG.get("default_category") else {"display": "none"}  # type: ignore[arg-type]
+        initial_metric_style = (
+            {"marginBottom": "16px"}
+            if (_INITIAL_CFG.get("default_metric") and _INITIAL_CFG.get("default_metric") != "value")
+                else {"display": "none"}
         )
 
-        # Drop total rows for mapping (they won't match LA codes)
-        df_map_base = df[df["location_code"].str.upper() != "TOTAL"].copy()
+        def _initial_time_dropdown(cfg):
+            time_col = cfg["default_time"]
+            if not time_col or time_col not in cfg["df"].columns:  # type: ignore[index]
+                return [], None
+            series = cfg["df"][time_col].astype(str)  # type: ignore[index]
+            values = sorted(series.dropna().unique())
+            options = [{"label": v, "value": v} for v in values]
+            default_value = values[-1] if values else None
+            return options, default_value
 
-        # Load boundaries
-        with open(_BOUNDARY_PATH, "r", encoding="utf-8") as f:
-            _geojson = json.load(f)
+        _INITIAL_YEAR_OPTIONS, _INITIAL_YEAR_VALUE = _initial_time_dropdown(_INITIAL_CFG)
 
-        CODE_PROP = "CTYUA17CD"  # must match featureidkey="properties.CTYUA17CD"
-        NAME_PROP = "CTYUA17NM"  # name field (change if current geojson uses a different one)
-
-        la_lookup = {
-            feat["properties"].get(CODE_PROP): feat["properties"].get(NAME_PROP)
-            for feat in _geojson.get("features", [])
-        }
-
-        df_map_base["la_name"] = df_map_base["location_code"].map(la_lookup) #used to display location names later
-
-        # Years for dropdown
-        _years = sorted(df_map_base["year"].dropna().unique())
-
-        # ── Layout ───────────────────────────────────────────────────────────
         layout = html.Div(
             [
-                html.H2("FSM Eligibility Heatmap (Local Authorities)"),
+                html.H2("Structured Dataset Heatmap"),
                 html.Div(
                     [
-                        html.Label("Academic Year"),
+                        html.Label("Structured dataset"),
+                        html.Div(
+                            [
+                                dcc.Dropdown(
+                                    id="heatmap-dataset",
+                                    options=_DATASET_OPTIONS,
+                                    value=_DEFAULT_DATASET,
+                                    clearable=False,
+                                    style={"width": "420px"},
+                                ),
+                                html.Button("Refresh datasets", id="heatmap-refresh-datasets", style={"marginLeft": "12px"}),
+                            ],
+                            style={"display": "flex", "alignItems": "center"},
+                        ),
+                    ],
+                    style={"marginBottom": "16px"},
+                ),
+                html.Div(
+                    [
+                        html.Label("Time column"),
+                        dcc.Dropdown(
+                            id="heatmap-time-column",
+                            options=_INITIAL_CFG["primary_options"],  # type: ignore[index]
+                            value=_INITIAL_CFG["default_time"],  # type: ignore[index]
+                            clearable=False,
+                            style={"width": "320px"},
+                        ),
+                    ],
+                    style={"marginBottom": "16px"},
+                ),
+                html.Div(
+                    [
+                        html.Label("Time value"),
                         dcc.Dropdown(
                             id="heatmap-year-dropdown",
-                            options=[{"label": y, "value": y} for y in _years],
-                            value=_years[-1] if _years else None,
+                            options=_INITIAL_YEAR_OPTIONS,
+                            value=_INITIAL_YEAR_VALUE,
+                            clearable=False,
+                            style={"width": "320px"},
+                        ),
+                    ],
+                    style={"marginBottom": "16px"},
+                ),
+                html.Div(
+                    [
+                        html.Label("Location code column (matches GeoJSON IDs)"),
+                        dcc.Dropdown(
+                            id="heatmap-geo-code-column",
+                            options=_INITIAL_CFG["primary_options"],  # type: ignore[index]
+                            value=_INITIAL_CFG["default_geo"],  # type: ignore[index]
                             clearable=False,
                             style={"width": "420px"},
                         ),
                     ],
                     style={"marginBottom": "16px"},
                 ),
+                html.Div(
+                    [
+                        html.Label("Location display column"),
+                        dcc.Dropdown(
+                            id="heatmap-display-column",
+                            options=(_INITIAL_CFG["primary_options"] + _INITIAL_CFG["display_schema_options"]),  # type: ignore[index]
+                            value=_INITIAL_CFG["default_display_choice"],  # type: ignore[index]
+                            clearable=False,
+                            style={"width": "420px"},
+                        ),
+                    ],
+                    style={"marginBottom": "16px"},
+                ),
+                html.H4("Secondary variable"),
+                html.Div(
+                    [
+                        dcc.Dropdown(
+                            id="heatmap-secondary-variable",
+                            options=_INITIAL_CFG["secondary_options"],  # type: ignore[index]
+                            value=_INITIAL_CFG["default_secondary"],  # type: ignore[index]
+                            clearable=False,
+                            style={"width": "420px"},
+                        ),
+                    ],
+                    style={"marginBottom": "16px"},
+                ),
+                html.Div(
+                    [
+                        html.Label("Category"),
+                        dcc.Dropdown(
+                            id="heatmap-secondary-category",
+                            options=_INITIAL_CFG["secondary_meta"].get(_INITIAL_CFG["default_secondary"], {}).get("categories", []),  # type: ignore[index]
+                            value=_INITIAL_CFG["default_category"],  # type: ignore[index]
+                            clearable=False,
+                            style={"width": "420px"},
+                        ),
+                    ],
+                    id="heatmap-secondary-category-container",
+                    style=initial_cat_style,
+                ),
+                html.Div(
+                    [
+                        html.Label("Metric"),
+                        dcc.Dropdown(
+                            id="heatmap-metric-type",
+                            options=_INITIAL_CFG["secondary_meta"].get(_INITIAL_CFG["default_secondary"], {}).get("metric_options", []),  # type: ignore[index]
+                            value=_INITIAL_CFG["default_metric"],  # type: ignore[index]
+                            clearable=False,
+                            style={"width": "420px"},
+                        ),
+                    ],
+                    id="heatmap-metric-type-container",
+                    style=initial_metric_style,
+                ),
                 dcc.Graph(id="heatmap-choropleth", style={"height": "80vh"}),
-                html.Small(f"Data: {_STRUCTURED_JSON.name} — Boundaries: {_BOUNDARY_PATH.name}"),
+                html.Small(id="heatmap-data-caption", children=f"Data: {_INITIAL_CFG['label']} - Boundaries: {_BOUNDARY_PATH.name}"),  # type: ignore[index]
             ],
             style={"padding": "16px"},
         )
 
-        # ── Callback ─────────────────────────────────────────────────────────
+        @callback(
+            Output("heatmap-dataset", "options"),
+            Output("heatmap-dataset", "value"),
+            Input("heatmap-refresh-datasets", "n_clicks"),
+            State("heatmap-dataset", "value"),
+        )
+        def refresh_dataset_dropdown(_, current_value):
+            options, default_value = _list_dataset_options()
+            option_values = {opt["value"] for opt in options}
+            value = current_value if current_value in option_values else default_value
+            return options, value
+
+        @callback(
+            Output("heatmap-time-column", "options"),
+            Output("heatmap-time-column", "value"),
+            Output("heatmap-geo-code-column", "options"),
+            Output("heatmap-geo-code-column", "value"),
+            Output("heatmap-display-column", "options"),
+            Output("heatmap-display-column", "value"),
+            Output("heatmap-secondary-variable", "options"),
+            Output("heatmap-secondary-variable", "value"),
+            Output("heatmap-secondary-category", "options"),
+            Output("heatmap-secondary-category", "value"),
+            Output("heatmap-secondary-category-container", "style"),
+            Output("heatmap-metric-type", "options"),
+            Output("heatmap-metric-type", "value"),
+            Output("heatmap-metric-type-container", "style"),
+            Output("heatmap-data-caption", "children"),
+            Input("heatmap-dataset", "value"),
+        )
+        def refresh_dataset(dataset_value: str | None):
+            cfg = _dataset_config(dataset_value)
+            if not cfg:
+                raise PreventUpdate
+
+            cat_style = {"marginBottom": "16px"} if cfg["default_category"] else {"display": "none"}
+            metric_style = (
+                {"marginBottom": "16px"}
+                if (cfg["default_metric"] and cfg["default_metric"] != "value")
+                else {"display": "none"}
+            )
+            caption = f"Data: {cfg['label']} - Boundaries: {_BOUNDARY_PATH.name}"
+
+            secondary_meta = cfg["secondary_meta"]  # type: ignore[assignment]
+            default_secondary = cfg["default_secondary"]
+            default_category = cfg["default_category"]
+            default_metric = cfg["default_metric"]
+
+            cat_options = secondary_meta.get(default_secondary, {}).get("categories", [])  # type: ignore[index]
+            metric_options = secondary_meta.get(default_secondary, {}).get("metric_options", [])  # type: ignore[index]
+
+            return (
+                cfg["primary_options"],
+                cfg["default_time"],
+                cfg["primary_options"],
+                cfg["default_geo"],
+                cfg["primary_options"] + cfg["display_schema_options"],
+                cfg["default_display_choice"],
+                cfg["secondary_options"],
+                default_secondary,
+                cat_options,
+                default_category,
+                cat_style,
+                metric_options,
+                default_metric,
+                metric_style,
+                caption,
+            )
+
+        @callback(
+            Output("heatmap-year-dropdown", "options"),
+            Output("heatmap-year-dropdown", "value"),
+            Input("heatmap-dataset", "value"),
+            Input("heatmap-time-column", "value"),
+        )
+        def sync_time_values(dataset_value: str | None, time_column: str | None):
+            cfg = _dataset_config(dataset_value)
+            if not cfg or not time_column or time_column not in cfg["df"].columns:  # type: ignore[index]
+                return [], None
+
+            series = cfg["df"][time_column].astype(str)  # type: ignore[index]
+            values = sorted(series.dropna().unique())
+            options = [{"label": v, "value": v} for v in values]
+            default_value = values[-1] if values else None
+            return options, default_value
+
+        @callback(
+            Output("heatmap-secondary-category", "options", allow_duplicate=True),
+            Output("heatmap-secondary-category", "value", allow_duplicate=True),
+            Output("heatmap-secondary-category-container", "style", allow_duplicate=True),
+            Output("heatmap-metric-type", "options", allow_duplicate=True),
+            Output("heatmap-metric-type", "value", allow_duplicate=True),
+            Output("heatmap-metric-type-container", "style", allow_duplicate=True),
+            Input("heatmap-secondary-variable", "value"),
+            State("heatmap-dataset", "value"),
+            prevent_initial_call=True,
+        )
+        def sync_secondary_controls(variable_name: str | None, dataset_value: str | None):
+            cfg = _dataset_config(dataset_value)
+            hidden = {"display": "none"}
+            if not cfg or not variable_name:
+                return [], None, hidden, [], None, hidden
+
+            info = cfg["secondary_meta"].get(variable_name, {})  # type: ignore[index]
+            cat_opts = info.get("categories", [])
+            cat_value = cat_opts[0]["value"] if cat_opts else None
+            cat_style = {"marginBottom": "16px"} if cat_opts else hidden
+
+            metric_opts = info.get("metric_options", [])
+            metric_value = metric_opts[0]["value"] if metric_opts else None
+            metric_style = {"marginBottom": "16px"} if (metric_value and metric_value != "value") else hidden
+
+            return cat_opts, cat_value, cat_style, metric_opts, metric_value, metric_style
+
         @callback(
             Output("heatmap-choropleth", "figure"),
+            Input("heatmap-dataset", "value"),
             Input("heatmap-year-dropdown", "value"),
+            Input("heatmap-time-column", "value"),
+            Input("heatmap-geo-code-column", "value"),
+            Input("heatmap-display-column", "value"),
+            Input("heatmap-secondary-variable", "value"),
+            Input("heatmap-secondary-category", "value"),
+            Input("heatmap-metric-type", "value"),
         )
-        def update_map(selected_year):
-            d = df_map_base[df_map_base["year"] == str(selected_year)].copy()
+        def update_map(dataset_value, selected_year, time_column, geo_code_col, display_col, secondary_var, category_value, metric_value):
+            cfg = _dataset_config(dataset_value)
+            if not cfg or not selected_year or not time_column or not geo_code_col or not secondary_var:
+                raise PreventUpdate
 
-            # Optional: filter to rows where the FSM section is defined (prevents NaN slices)
-            # This relies on StructuredData's defined_map.
-            # If your StructuredData class uses a different helper method name, remove this block.
-            try:
-                d = d[
-                    d["location_code"].map(
-                        lambda la: structured.is_defined(
-                            {"year": str(selected_year), "location_code": la},
-                            "fsm_eligibility",
-                        )
-                    )
-                ].copy()
-            except Exception:
-                # If is_defined isn't available, just proceed without filtering
-                pass
+            df = cfg["df"]  # type: ignore[assignment]
+            metric_col, metric_kind = _metric_column(cfg, secondary_var, category_value, metric_value)
+            if not metric_col or metric_col not in df.columns:
+                raise PreventUpdate
 
-            # Ensure numeric
-            d[eligible_percent_col] = pd.to_numeric(d[eligible_percent_col], errors="coerce")
+            if geo_code_col not in df.columns:
+                raise PreventUpdate
+
+            if time_column not in df.columns:
+                raise PreventUpdate
+
+            d = df[df[time_column].astype(str) == str(selected_year)].copy()
+            d[geo_code_col] = d[geo_code_col].astype(str).str.strip()
+            d = d[d[geo_code_col].str.upper() != "TOTAL"]
+            d[metric_col] = pd.to_numeric(d[metric_col], errors="coerce")
+
+            if not display_col:
+                display_col = geo_code_col
+
+            if display_col.startswith("__schema__"):
+                base_col = display_col.replace("__schema__", "", 1)
+                display_map = cfg["primary_display_map"].get(base_col, {})  # type: ignore[index]
+                if base_col not in d.columns:
+                    raise PreventUpdate
+                temp_col = "__display_label__"
+                d[temp_col] = (
+                    d[base_col]
+                    .astype(str)
+                    .str.strip()
+                    .map(lambda key: display_map.get(key, key))
+                )
+                display_col = temp_col
+            elif display_col not in d.columns:
+                display_col = geo_code_col
+
+            hover_data = {
+                geo_code_col: True,
+                metric_col: ":.2f" if metric_kind == "percent" else True,
+            }
 
             fig = px.choropleth(
                 d,
                 geojson=_geojson,
-                locations="location_code",
-                featureidkey="properties.CTYUA17CD",
-                color=eligible_percent_col,
+                locations=geo_code_col,
+                featureidkey=f"properties.{CODE_PROP}",
+                color=metric_col,
                 color_continuous_scale="Reds",
-                hover_name="la_name",
-                hover_data={
-                    "location_code": True,
-                    eligible_percent_col: ":.2f",
-                    "headcount": True,
-                    eligible_count_col: True,
-                },
+                hover_name=display_col,
+                hover_data=hover_data,
             )
             fig.update_geos(fitbounds="locations", visible=False)
             fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
