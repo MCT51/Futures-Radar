@@ -8,7 +8,10 @@ import pandas as pd
 
 # Adjust these imports to your repo layout:
 # If your ingestion code is in Ingestion/test/, use Ingestion.test.*
-from Ingestion.primary_variable import PrimaryVariable
+from Ingestion.primary_variable import (
+    QualitativePrimaryVariable,
+    QuantitativePrimaryVariable,
+)
 from Ingestion.secondary_variable import (
     QuantitativeScalarSecondaryVariable,
     QualitativeScalarSecondaryVariable,
@@ -139,13 +142,32 @@ def build_structured_from_csv(
             mapping_df[disp_col] = mapping_df[disp_col].astype(str).str.strip()
             mapping_df = mapping_df.drop_duplicates(subset=col)
             csv_to_display.update(dict(zip(mapping_df[col], mapping_df[disp_col])))
-        primary_vars.append(
-            PrimaryVariable(
-                title=col.replace("_", " ").title(),
-                column_name=col,
-                csv_to_display=csv_to_display,
+        csv_to_number = None
+        numeric_values: dict[str, float] = {}
+        is_quantitative = True
+        for raw_value in vals:
+            try:
+                numeric_values[raw_value] = float(raw_value)
+            except (TypeError, ValueError):
+                is_quantitative = False
+                break
+        if is_quantitative and numeric_values:
+            primary_vars.append(
+                QuantitativePrimaryVariable(
+                    title=col.replace("_", " ").title(),
+                    column_name=col,
+                    csv_to_display=csv_to_display,
+                    csv_to_number=numeric_values,
+                )
             )
-        )
+        else:
+            primary_vars.append(
+                QualitativePrimaryVariable(
+                    title=col.replace("_", " ").title(),
+                    column_name=col,
+                    csv_to_display=csv_to_display,
+                )
+            )
 
     # --- Build a "raw for schema" dataframe ---
     # Start with just the primary columns

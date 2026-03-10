@@ -324,15 +324,18 @@ def build(
             return html.Div("Location primary must also be included in the primary variable list.", style={"color": "#c0392b"})
         display_name_columns = {location_primary: location_display}
 
-    json_out, csv_out = build_structured_from_csv(
-        raw_csv_path=csv_path,
-        dataset_name=dataset_name,
-        primary_cols=primaries,
-        secondary_specs=[spec],
-        filters=filters,
-        out_dir=OUT_DIR,
-        display_name_columns=display_name_columns,
-    )
+    try:
+        json_out, csv_out = build_structured_from_csv(
+            raw_csv_path=csv_path,
+            dataset_name=dataset_name,
+            primary_cols=primaries,
+            secondary_specs=[spec],
+            filters=filters,
+            out_dir=OUT_DIR,
+            display_name_columns=display_name_columns,
+        )
+    except Exception as exc:
+        return html.Div(str(exc), style={"color": "#c0392b"})
 
     return html.Div(
         [
