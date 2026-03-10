@@ -465,7 +465,13 @@ class Schema:
         if df is not None:
             overlap = [c for c in df.columns if c in out.columns]
             if overlap:
-                out = out.merge(df[overlap + self.primary_column_names()].drop_duplicates(), on=self.primary_column_names(), how="left", suffixes=("", "_src"))
+                merge_cols = []
+                seen = set()
+                for c in overlap + self.primary_column_names():
+                    if c not in seen:
+                        merge_cols.append(c)
+                        seen.add(c)
+                out = out.merge(df[merge_cols].drop_duplicates(), on=self.primary_column_names(), how="left", suffixes=("", "_src"))
                 for col in overlap:
                     src_col = f"{col}_src"
                     if src_col in out.columns:
@@ -479,16 +485,7 @@ class Schema:
         Create exact primary-key grid and retain existing data values.
         Missing sections remain NaN.
         """
-        base = self.generateExampleCSV()
-        cols = [c for c in df.columns if c in base.columns]
-        if not cols:
-            return base
-        return base.merge(
-            df[cols].drop_duplicates(subset=self.primary_column_names()),
-            on=self.primary_column_names(),
-            how="left",
-            suffixes=("", "_src"),
-        )
+        return self.generateExampleCSV(df)
 
 
 __all__ = [

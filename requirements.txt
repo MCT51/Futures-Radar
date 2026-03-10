@@ -6,6 +6,5 @@ nltk
 newspaper3k
 googlenewsdecoder
 lxml_html_clean
-transformers
-scipy
-torch
+gunicorn
+requests

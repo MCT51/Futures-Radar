@@ -24,8 +24,7 @@ def fetch_links_from_db(db_path: str = DEFAULT_DB_PATH) -> List[tuple]:
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT url, published_date FROM articles")
-        #cursor.execute("SELECT url, published_date FROM articles WHERE sentiment_score IS NULL") # Fetch only articles that haven't been processed for sentiment
+        cursor.execute("SELECT url, published_date FROM articles WHERE sentiment_score IS NULL") # Fetch only articles that haven't been processed for sentiment
         for row in cursor.fetchall():
             if not row or not row[0]:
                 continue
