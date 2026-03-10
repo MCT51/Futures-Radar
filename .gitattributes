@@ -1,2 +1,5 @@
 Data/data-large-needslfs/** filter=lfs diff=lfs merge=lfs -text
 Wordcloud/wordcloud/bbc_education_inclusion.db filter=lfs diff=lfs merge=lfs -text
+Data/SEN_data-needslfs/sen_age_sex_.csv filter=lfs diff=lfs merge=lfs -text
+"Data/Quantitative - Schools, pupils and their characteristics/supporting-files/spc_school_level_class_size_underlying_data.csv" filter=lfs diff=lfs merge=lfs -text
+"Data/Quantitative - Schools, pupils and their characteristics/supporting-files/spc_school_level_underlying_data_2025.csv" filter=lfs diff=lfs merge=lfs -text
