@@ -298,7 +298,7 @@ else:
             context_val = None
         else:
             context_pv = next(p for p in sd.schema.primary_variables if p.column_name == context_col)
-            context_label = f"{context_pv.title} (fixed)"
+            context_label = context_pv.title
             context_opts = _primary_value_options(sd, context_col, include_total=True)
             context_allowed = {o["value"] for o in context_opts}
             if context_value in context_allowed:

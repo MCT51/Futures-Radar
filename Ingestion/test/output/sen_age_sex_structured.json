@@ -43301,6 +43301,7 @@
   "schema": {
     "primary_variables": [
       {
+        "class": "QuantitativePrimaryVariable",
         "title": "Year",
         "column_name": "year",
         "csv_to_display": {
@@ -43315,9 +43316,23 @@
           "202324": "202324",
           "202425": "202425"
         },
-        "total_required": true
+        "variable_type": "quantitative_primary",
+        "variable_name": "year",
+        "csv_to_number": {
+          "201516": 201516.0,
+          "201617": 201617.0,
+          "201718": 201718.0,
+          "201819": 201819.0,
+          "201920": 201920.0,
+          "202021": 202021.0,
+          "202122": 202122.0,
+          "202223": 202223.0,
+          "202324": 202324.0,
+          "202425": 202425.0
+        }
       },
       {
+        "class": "QualitativePrimaryVariable",
         "title": "Location (LA code)",
         "column_name": "location_code",
         "csv_to_display": {
@@ -43485,7 +43500,8 @@
           "E10000032": "West Sussex",
           "E10000034": "Worcestershire"
         },
-        "total_required": true
+        "variable_type": "qualitative_primary",
+        "variable_name": "location_la_code"
       }
     ],
     "secondary_variables": [

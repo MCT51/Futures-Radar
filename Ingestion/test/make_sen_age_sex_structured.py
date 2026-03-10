@@ -250,7 +250,7 @@ def build_non_total_rows(raw: pd.DataFrame, schema: Schema) -> pd.DataFrame:
     return rows_df
 
 
-def build_structured_data(*, flatten_primary_column: str | None = "year") -> StructuredData:
+def build_structured_data(*, flatten_primary_column: str | None = None) -> StructuredData:
     raw = load_raw()
     schema = build_schema(raw)
     non_total_rows = build_non_total_rows(raw, schema)
