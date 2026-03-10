@@ -13,22 +13,22 @@ young,1,88,22
 parents,1,84,22
 england,1,83,34
 into,1,82,42
-told,1,80,34
+told,1,81,35
 plans,1,80,22
 need,1,77,40
 like,1,77,39
 police,1,77,17
 student,1,75,14
 university,1,73,20
-only,1,71,33
+only,1,72,34
 families,1,70,20
 government,1,70,12
 because,1,69,32
 pupils,1,65,19
 care,1,63,25
+home,1,63,23
 wales,1,63,17
 child,1,63,16
-home,1,62,22
 including,1,60,34
 other,1,60,34
 should,1,59,32
@@ -38,21 +38,21 @@ three,1,57,29
 help,1,57,28
 staff,1,57,20
 part,1,55,33
-added,1,54,29
+added,1,53,28
 your,1,51,26
 number,1,50,20
 social,1,50,18
 plan,1,50,17
+found,1,49,23
 going,1,48,26
 very,1,47,26
 think,1,46,24
-found,1,46,22
 loans,1,46,5
 every,1,45,27
+then,1,45,25
 interest,1,45,10
+across,1,44,30
 take,1,44,26
-then,1,44,24
-across,1,43,29
 health,1,43,19
 legal,1,43,19
 media,1,43,10
@@ -62,17 +62,17 @@ called,1,42,28
 secretary,1,42,25
 ehcps,1,42,8
 homes,1,41,7
-back,1,39,21
+back,1,40,22
 want,1,39,21
 against,1,38,23
 life,1,38,21
 special,1,38,18
+family,1,38,16
 scotland,1,38,14
 social media,2,38,9
 around,1,37,28
 changes,1,37,22
 know,1,37,22
-family,1,37,15
 down,1,36,24
 right,1,36,23
 concerns,1,36,22
@@ -99,14 +99,15 @@ taking,1,31,24
 here,1,31,21
 another,1,31,19
 even,1,30,20
+same,1,30,19
 something,1,30,19
 feel,1,30,18
 ireland,1,30,9
 arlene,1,30,1
 among,1,29,23
-same,1,29,18
 primary,1,29,14
 pierce,1,29,1
+given,1,28,22
 might,1,28,22
 give,1,28,19
 year-old,1,28,17
@@ -118,7 +119,6 @@ money,1,28,12
 ehcp,1,28,8
 come,1,27,23
 within,1,27,22
-given,1,27,21
 much,1,27,18
 provide,1,27,17
 labour,1,27,15
@@ -136,6 +136,7 @@ mainstream,1,26,8
 second,1,26,8
 graduates,1,26,7
 both,1,25,19
+five,1,25,18
 face,1,25,17
 spokesperson,1,25,17
 such,1,25,17
@@ -156,7 +157,7 @@ earlier,1,24,19
 ensure,1,24,19
 access,1,24,17
 adding,1,24,17
-five,1,24,17
+needed,1,24,16
 level,1,24,15
 months,1,24,15
 policy,1,24,15
@@ -173,7 +174,6 @@ september,1,23,18
 taken,1,23,18
 must,1,23,16
 didn,1,23,15
-needed,1,23,15
 often,1,23,14
 person,1,23,13
 real,1,23,12
@@ -258,6 +258,7 @@ aware,1,19,11
 better,1,19,11
 monday,1,19,11
 primary school,2,19,11
+course,1,19,10
 documents,1,19,10
 receive,1,19,10
 medical,1,19,9
@@ -267,6 +268,7 @@ church,1,19,2
 lord mandelson,2,19,2
 mandelson,1,19,2
 womb,1,19,1
+high,1,18,17
 follow,1,18,16
 early,1,18,15
 become,1,18,14
@@ -274,11 +276,12 @@ move,1,18,14
 does,1,18,13
 former,1,18,13
 process,1,18,13
+went,1,18,13
 find,1,18,12
+later,1,18,12
 good,1,18,11
 never,1,18,11
 house,1,18,10
-course,1,18,9
 decision,1,18,9
 higher,1,18,9
 targeted,1,18,9
@@ -296,7 +299,6 @@ maintenance,1,18,5
 royal,1,18,5
 debt,1,18,4
 geothermal,1,18,1
-high,1,17,16
 newsletter,1,17,16
 almost,1,17,13
 current,1,17,13
@@ -309,10 +311,8 @@ april,1,17,12
 away,1,17,12
 delivered,1,17,12
 education secretary,2,17,12
-later,1,17,12
 long,1,17,12
 received,1,17,12
-went,1,17,12
 charity,1,17,11
 complex,1,17,11
 costs,1,17,11
@@ -336,6 +336,7 @@ allegations,1,17,7
 video,1,17,7
 white paper,2,17,7
 content,1,17,5
+girls,1,17,5
 student loans,2,17,5
 threshold,1,17,5
 appointments,1,17,4
@@ -355,6 +356,7 @@ kind,1,16,13
 leave,1,16,13
 live,1,16,13
 department education,2,16,12
+previously,1,16,12
 rather,1,16,12
 authorities,1,16,11
 available,1,16,11
@@ -369,7 +371,6 @@ result,1,16,10
 released,1,16,8
 supporting,1,16,8
 study,1,16,7
-girls,1,16,4
 politicians,1,16,4
 footage,1,16,3
 meet,1,15,15
@@ -378,7 +379,6 @@ outside,1,15,13
 small,1,15,13
 best,1,15,12
 mean,1,15,12
-previously,1,15,12
 crime,1,15,11
 done,1,15,11
 serious,1,15,11
@@ -427,8 +427,10 @@ figures,1,14,9
 keir,1,14,9
 rachel,1,14,9
 sure,1,14,9
+justice,1,14,8
 minister,1,14,8
 resources,1,14,8
+security,1,14,8
 communities,1,14,7
 practice,1,14,7
 side,1,14,7
@@ -471,21 +473,22 @@ programme,1,13,9
 story,1,13,9
 terms,1,13,9
 consultation,1,13,8
-justice,1,13,8
+county,1,13,8
 lost,1,13,8
 built,1,13,7
 inclusive,1,13,7
 officers,1,13,7
 price,1,13,7
 rates,1,13,7
-security,1,13,7
 support children,2,13,7
 challenge,1,13,6
 fees,1,13,6
 likely,1,13,6
 safeguarding,1,13,6
 street,1,13,6
+killed,1,13,5
 leeds,1,13,5
+water,1,13,5
 finance,1,13,4
 plan loans,2,13,4
 heat,1,13,2
@@ -524,6 +527,7 @@ nothing,1,12,9
 politics,1,12,9
 prevent,1,12,9
 sent,1,12,9
+arrested,1,12,8
 budget,1,12,8
 designed,1,12,8
 gone,1,12,8
@@ -533,7 +537,6 @@ remains,1,12,8
 shared,1,12,8
 thought,1,12,8
 activity,1,12,7
-county,1,12,7
 create,1,12,7
 friends,1,12,7
 kids,1,12,7
@@ -549,11 +552,10 @@ inflation,1,12,5
 tuition,1,12,5
 country,1,12,4
 hall,1,12,4
-killed,1,12,4
-water,1,12,4
 blue,1,12,2
 electricity,1,12,2
 firearms,1,12,2
+huntley,1,12,2
 neet,1,12,2
 izzy,1,12,1
 v-levels,1,12,1
@@ -564,6 +566,7 @@ improve,1,11,11
 order,1,11,11
 problem,1,11,11
 situation,1,11,11
+giving,1,11,10
 latest,1,11,10
 nearly,1,11,10
 nine,1,11,10
@@ -587,7 +590,7 @@ secure,1,11,8
 simply,1,11,8
 supported,1,11,8
 wouldn,1,11,8
-arrested,1,11,7
+attacked,1,11,7
 phone,1,11,7
 play,1,11,7
 proposed,1,11,7
@@ -631,7 +634,6 @@ came,1,10,9
 doesn,1,10,9
 essential,1,10,9
 followed,1,10,9
-giving,1,10,9
 hopes,1,10,9
 included,1,10,9
 keir starmer,2,10,9
@@ -651,6 +653,7 @@ happen,1,10,8
 hard,1,10,8
 leading,1,10,8
 physical,1,10,8
+aged,1,10,7
 areas,1,10,7
 challenges,1,10,7
 february,1,10,7
@@ -674,6 +677,7 @@ youth,1,10,6
 complex needs,2,10,5
 entitled,1,10,5
 examples,1,10,5
+missing,1,10,5
 payments,1,10,5
 poor,1,10,5
 several,1,10,5
@@ -701,6 +705,7 @@ lets,1,10,1
 riki,1,10,1
 transplant,1,10,1
 government announced,2,9,9
+leaving,1,9,9
 recently,1,9,9
 seeing,1,9,9
 towards,1,9,9
@@ -708,6 +713,7 @@ although,1,9,8
 decided,1,9,8
 democrats,1,9,8
 happening,1,9,8
+headlines,1,9,8
 incidents,1,9,8
 issued,1,9,8
 potential,1,9,8
@@ -740,13 +746,12 @@ understands,1,9,7
 ways,1,9,7
 words,1,9,7
 academic,1,9,6
-aged,1,9,6
-attacked,1,9,6
 became,1,9,6
 choice,1,9,6
 countries,1,9,6
 decisions,1,9,6
 husband,1,9,6
+jailed,1,9,6
 john,1,9,6
 mental health,2,9,6
 range,1,9,6
@@ -765,6 +770,7 @@ isps,1,9,5
 late,1,9,5
 laws,1,9,5
 open,1,9,5
+prison,1,9,5
 release,1,9,5
 removed,1,9,5
 road,1,9,5
@@ -774,7 +780,6 @@ courses,1,9,4
 higher education,2,9,4
 inclusion,1,9,4
 killing,1,9,4
-missing,1,9,4
 paul,1,9,4
 planning,1,9,4
 sites,1,9,4
@@ -805,7 +810,6 @@ director,1,8,8
 earlier month,2,8,8
 happens,1,8,8
 introduce,1,8,8
-leaving,1,8,8
 minister keir,2,8,8
 minister keir starmer,3,8,8
 network,1,8,8
@@ -825,7 +829,6 @@ conversations,1,8,7
 eight,1,8,7
 everything,1,8,7
 forward,1,8,7
-headlines,1,8,7
 institute,1,8,7
 knew,1,8,7
 liberal democrats,2,8,7
@@ -872,9 +875,9 @@ child needs,2,8,5
 city,1,8,5
 depending,1,8,5
 digital,1,8,5
+guilty,1,8,5
 history,1,8,5
 hope,1,8,5
-jailed,1,8,5
 rachel reeves,2,8,5
 relationship,1,8,5
 reports,1,8,5
@@ -921,7 +924,6 @@ clinic,1,8,2
 committee,1,8,2
 dying,1,8,2
 group claim,2,8,2
-huntley,1,8,2
 male,1,8,2
 maternity services,2,8,2
 pre-action letters,2,8,2
@@ -1034,7 +1036,6 @@ limit,1,7,5
 measure,1,7,5
 option,1,7,5
 political,1,7,5
-prison,1,7,5
 prof,1,7,5
 promised,1,7,5
 protections,1,7,5
@@ -1052,7 +1053,6 @@ actual,1,7,4
 assault,1,7,4
 colleges,1,7,4
 couple,1,7,4
-guilty,1,7,4
 images,1,7,4
 make sure,2,7,4
 material,1,7,4
@@ -1162,8 +1162,10 @@ story ideas,2,6,6
 subject,1,6,6
 system england,2,6,6
 understand,1,6,6
+west,1,6,6
 assistant,1,6,5
 audit,1,6,5
+believed,1,6,5
 calls,1,6,5
 central,1,6,5
 changing,1,6,5
@@ -1266,6 +1268,7 @@ claiming,1,6,3
 davies,1,6,3
 deaths,1,6,3
 encouraging,1,6,3
+false,1,6,3
 favour,1,6,3
 food,1,6,3
 general secretary,2,6,3
@@ -1283,6 +1286,7 @@ somerset,1,6,3
 started university,2,6,3
 students england,2,6,3
 trial,1,6,3
+went missing,2,6,3
 worker,1,6,3
 alvaston,1,6,2
 alvaston moor,2,6,2
@@ -1411,7 +1415,6 @@ turned,1,5,5
 unfair,1,5,5
 unnecessary,1,5,5
 welcomed,1,5,5
-west,1,5,5
 worries,1,5,5
 your story,2,5,5
 your story ideas,3,5,5
@@ -1421,7 +1424,6 @@ anywhere,1,5,4
 apprenticeships,1,5,4
 aren,1,5,4
 audit office,2,5,4
-believed,1,5,4
 below,1,5,4
 bought,1,5,4
 businesses,1,5,4
@@ -1582,7 +1584,6 @@ bereaved families,2,5,2
 compensation,1,5,2
 diamond,1,5,2
 examine,1,5,2
-false,1,5,2
 footage shows,2,5,2
 hate,1,5,2
 katie,1,5,2
@@ -1604,7 +1605,6 @@ streeting,1,5,2
 subjects,1,5,2
 travelling,1,5,2
 underground,1,5,2
-went missing,2,5,2
 admission,1,5,1
 archbishop wales,2,5,1
 atkins,1,5,1
@@ -1659,6 +1659,7 @@ asking,1,4,4
 associated,1,4,4
 attempt,1,4,4
 attendance,1,4,4
+august,1,4,4
 autistic,1,4,4
 automatically,1,4,4
 awareness,1,4,4
@@ -1846,6 +1847,7 @@ westminster beyond,2,4,4
 workings,1,4,4
 workings westminster,2,4,4
 workings westminster beyond,3,4,4
+yorkshire,1,4,4
 your inbox,2,4,4
 your inbox every,3,4,4
 abroad,1,4,3
@@ -1896,6 +1898,7 @@ feature,1,4,3
 feeling,1,4,3
 fights,1,4,3
 final,1,4,3
+found guilty,2,4,3
 free speech,2,4,3
 frightened,1,4,3
 gang,1,4,3
@@ -1907,6 +1910,7 @@ healthcare,1,4,3
 income,1,4,3
 inherited,1,4,3
 jack,1,4,3
+jail,1,4,3
 joined,1,4,3
 keep until,2,4,3
 kill,1,4,3
@@ -1977,8 +1981,10 @@ unique,1,4,3
 universal,1,4,3
 unprecedented,1,4,3
 usually,1,4,3
+vanished,1,4,3
 vary,1,4,3
 volatile,1,4,3
+weapon,1,4,3
 angry,1,4,2
 bathroom,1,4,2
 black mamas,2,4,2
@@ -2007,9 +2013,11 @@ explore,1,4,2
 families like,2,4,2
 flights,1,4,2
 guns,1,4,2
+holly,1,4,2
 home secretary,2,4,2
 independent special,2,4,2
 investors,1,4,2
+jessica,1,4,2
 judge,1,4,2
 legal right,2,4,2
 level support,2,4,2
@@ -2041,6 +2049,7 @@ school staff,2,4,2
 schools england,2,4,2
 settlement,1,4,2
 snapchat,1,4,2
+soham,1,4,2
 start repaying,2,4,2
 statistics,1,4,2
 surgery,1,4,2
@@ -2128,9 +2137,10 @@ arrested suspicion,2,3,3
 assessment,1,3,3
 attached,1,3,3
 attacking,1,3,3
-august,1,3,3
 australia,1,3,3
 backlash,1,3,3
+blood,1,3,3
+bodies,1,3,3
 boost,1,3,3
 breaking,1,3,3
 bridget phillipson told,3,3,3
@@ -2359,6 +2369,7 @@ police officers,2,3,3
 policy document,2,3,3
 political analysis,2,3,3
 political analysis gain,3,3,3
+previously told,2,3,3
 primary school gcses,3,3,3
 principle,1,3,3
 prior,1,3,3
@@ -2413,6 +2424,7 @@ school gcses,2,3,3
 school place,2,3,3
 scotland northern,2,3,3
 scotland northern ireland,3,3,3
+searches,1,3,3
 seek,1,3,3
 seemed like,2,3,3
 send costs,2,3,3
@@ -2429,6 +2441,7 @@ simple,1,3,3
 smiling,1,3,3
 social care,2,3,3
 some parents,2,3,3
+sources,1,3,3
 space,1,3,3
 specifically,1,3,3
 speech language therapists,3,3,3
@@ -2471,6 +2484,7 @@ therapists,1,3,3
 therefore,1,3,3
 threatened,1,3,3
 three months,2,3,3
+threw,1,3,3
 told breakfast,2,3,3
 told radio today,3,3,3
 tony,1,3,3
@@ -2503,7 +2517,6 @@ worrying,1,3,3
 worst,1,3,3
 worth,1,3,3
 wrongdoing,1,3,3
-yorkshire,1,3,3
 able keep,2,3,2
 able keep until,3,3,2
 academies,1,3,2
@@ -2568,6 +2581,7 @@ derbyshire,1,3,2
 design,1,3,2
 devil,1,3,2
 disadvantaged backgrounds,2,3,2
+disappearance,1,3,2
 dodd,1,3,2
 doubling,1,3,2
 doubt,1,3,2
@@ -2596,7 +2610,7 @@ fallen,1,3,2
 feeds,1,3,2
 former prince,2,3,2
 forwarded,1,3,2
-found guilty,2,3,2
+frankland,1,3,2
 freedom expression,2,3,2
 fuel,1,3,2
 gemma,1,3,2
@@ -2610,7 +2624,6 @@ hampshire county council,3,3,2
 heat pumps,2,3,2
 help young,2,3,2
 help young secure,3,3,2
-holly,1,3,2
 hospitality,1,3,2
 hotel,1,3,2
 hubs,1,3,2
@@ -2618,13 +2631,12 @@ incentives,1,3,2
 inclusion hubs,2,3,2
 inclusion standards,2,3,2
 incredibly,1,3,2
+inmate,1,3,2
 interest charged,2,3,2
 interest even,2,3,2
 internal,1,3,2
 internet,1,3,2
 island,1,3,2
-jail,1,3,2
-jessica,1,3,2
 jonathan,1,3,2
 kadeem,1,3,2
 know going,2,3,2
@@ -2722,7 +2734,6 @@ shot,1,3,2
 sleeping,1,3,2
 smaller,1,3,2
 social media accounts,3,3,2
-soham,1,3,2
 sold,1,3,2
 somerset council,2,3,2
 soul,1,3,2
@@ -2775,7 +2786,6 @@ uniform policy,2,3,2
 university exeter,2,3,2
 urged government,2,3,2
 users,1,3,2
-vanished,1,3,2
 vetting,1,3,2
 victory,1,3,2
 viral,1,3,2
@@ -2787,7 +2797,6 @@ wales green party,3,3,2
 wants government,2,3,2
 watching,1,3,2
 ways make,2,3,2
-weapon,1,3,2
 welsh liberal,2,3,2
 whiteman,1,3,2
 word,1,3,2
@@ -3037,6 +3046,7 @@ aggravating,1,2,2
 agreed take,2,2,2
 agriculture,1,2,2
 aimed,1,2,2
+alibi,1,2,2
 all-weather,1,2,2
 all-weather jacket,2,2,2
 all-weather jacket polo,3,2,2
@@ -3117,6 +3127,7 @@ average graduate,2,2,2
 awaiting,1,2,2
 aware concerns,2,2,2
 aware some,2,2,2
+back home,2,2,2
 backs,1,2,2
 bail,1,2,2
 bank,1,2,2
@@ -3155,9 +3166,8 @@ black all-weather,2,2,2
 black all-weather jacket,3,2,2
 black mamas peer,3,2,2
 blair,1,2,2
-blood,1,2,2
+bludgeoned,1,2,2
 boat,1,2,2
-bodies,1,2,2
 bonuses,1,2,2
 books,1,2,2
 borrowed,1,2,2
@@ -3194,6 +3204,7 @@ carefully,1,2,2
 carer apply,2,2,2
 carer apply education,3,2,2
 caretaker,1,2,2
+carr,1,2,2
 case against,2,2,2
 categorised,1,2,2
 category,1,2,2
@@ -3327,7 +3338,9 @@ councils projected,2,2,2
 councils projected spend,3,2,2
 counting,1,2,2
 countries like,2,2,2
+county durham,2,2,2
 courage,1,2,2
+course justice,2,2,2
 covers,1,2,2
 created using,2,2,2
 credit,1,2,2
@@ -3430,6 +3443,7 @@ disputes,1,2,2
 disputes local,2,2,2
 disputes local authorities,3,2,2
 distributed,1,2,2
+ditch,1,2,2
 ditching,1,2,2
 divide,1,2,2
 divorce,1,2,2
@@ -3611,7 +3625,6 @@ found young,2,2,2
 foundation found,2,2,2
 founded black,2,2,2
 founded black mamas,3,2,2
-frankland,1,2,2
 freedom information,2,2,2
 frequent,1,2,2
 frequent bouts,2,2,2
@@ -3716,6 +3729,8 @@ hesitate,1,2,2
 hiding,1,2,2
 high interest rates,3,2,2
 high school sixth,3,2,2
+high security,2,2,2
+high security prison,3,2,2
 higher education policy,3,2,2
 higher training,2,2,2
 highest levels,2,2,2
@@ -3726,6 +3741,7 @@ hill,1,2,2
 hired,1,2,2
 historic,1,2,2
 holding,1,2,2
+holly jessica,2,2,2
 holly wells,2,2,2
 holly wells jessica,3,2,2
 home affairs,2,2,2
@@ -3741,6 +3757,7 @@ identifies,1,2,2
 identifies needs,2,2,2
 identifies needs sets,3,2,2
 identifying,1,2,2
+identity,1,2,2
 ignore,1,2,2
 illegally,1,2,2
 immediate aftermath,2,2,2
@@ -3771,7 +3788,6 @@ inflation currently,2,2,2
 inflation currently anyone,3,2,2
 inflation three,2,2,2
 informed,1,2,2
-inmate,1,2,2
 innovation,1,2,2
 inquest into,2,2,2
 inquiry into nottingham,3,2,2
@@ -3902,6 +3918,7 @@ lord mandelson publicly,3,2,2
 love,1,2,2
 lovely,1,2,2
 luke sibieta,2,2,2
+lying,1,2,2
 macalister,1,2,2
 magnet,1,2,2
 mainly,1,2,2
@@ -3972,10 +3989,13 @@ munira,1,2,2
 munira wilson,2,2,2
 murderer,1,2,2
 murdering,1,2,2
+murdering holly,2,2,2
+murdering holly jessica,3,2,2
 must ensure,2,2,2
 names,1,2,2
 national association,2,2,2
 national association head,3,2,2
+national headlines,2,2,2
 national statistics,2,2,2
 nationals,1,2,2
 nature,1,2,2
@@ -4143,7 +4163,6 @@ pledge,1,2,2
 plus depending,2,2,2
 point starting,2,2,2
 point starting september,3,2,2
-police added,2,2,2
 police already,2,2,2
 police england,2,2,2
 police england wales,3,2,2
@@ -4153,6 +4172,7 @@ police told,2,2,2
 policy document lays,3,2,2
 policy institute,2,2,2
 politicians told,2,2,2
+pool,1,2,2
 position acted,2,2,2
 position acted criminally,3,2,2
 positive some,2,2,2
@@ -4169,7 +4189,6 @@ present send system,3,2,2
 pressure reduce,2,2,2
 preventative,1,2,2
 prevented,1,2,2
-previously told,2,2,2
 price index measure,3,2,2
 prices index,2,2,2
 pride,1,2,2
@@ -4394,11 +4413,11 @@ schools though,2,2,2
 scottish parliament,2,2,2
 scrapped,1,2,2
 scrutiny,1,2,2
-searches,1,2,2
 secretary national education,3,2,2
 secretary streeting,2,2,2
 sector workers,2,2,2
 sector workers like,3,2,2
+security prison,2,2,2
 seek damages,2,2,2
 seek damages learning,3,2,2
 seller,1,2,2
@@ -4466,7 +4485,6 @@ sorts,1,2,2
 sounds facebook,2,2,2
 sounds facebook instagram,3,2,2
 sounds follow,2,2,2
-sources,1,2,2
 spaces,1,2,2
 speaking families,2,2,2
 speaking families teachers,3,2,2
@@ -4605,6 +4623,7 @@ tends,1,2,2
 tens,1,2,2
 tens thousands,2,2,2
 term murdering,2,2,2
+term murdering holly,3,2,2
 terrible,1,2,2
 testimony,1,2,2
 text,1,2,2
@@ -4629,8 +4648,8 @@ three layers support,3,2,2
 three make,2,2,2
 thresholds risen,2,2,2
 thresholds risen line,3,2,2
-threw,1,2,2
 thriving,1,2,2
+throat,1,2,2
 throwing,1,2,2
 tiers,1,2,2
 tiktok video,2,2,2
@@ -4744,6 +4763,7 @@ wells jessica chapman,3,2,2
 welsh conservatives,2,2,2
 welsh labour,2,2,2
 welsh liberal democrats,3,2,2
+west yorkshire,2,2,2
 whereas,1,2,2
 whether child,2,2,2
 whichever,1,2,2
@@ -5068,7 +5088,6 @@ died according findings,3,2,1
 difficulties securing,2,2,1
 dignified,1,2,1
 directly your,2,2,1
-disappearance,1,2,1
 discuss work,2,2,1
 discuss work doing,3,2,1
 displayed,1,2,1
