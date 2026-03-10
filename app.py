@@ -33,7 +33,7 @@ server = app.server
 _REPO_ROOT = Path(__file__).resolve().parent
 _WORDCLOUD_DB_PATH = _REPO_ROOT / "Wordcloud" / "wordcloud" / "bbc_education_inclusion.db"
 _WORDCLOUD_MIN_FREQUENCY = 2
-_WORDCLOUD_LIMIT = 100
+_WORDCLOUD_LIMIT = 200
 _WORDCLOUD_TREND_LOOKBACK_DAYS = 7
 _WORDCLOUD_TREND_LIMIT = 12
 

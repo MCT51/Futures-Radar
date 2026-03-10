@@ -26,8 +26,10 @@ DEFAULT_FEED_URLS = [
     "https://feeds.bbci.co.uk/news/education/rss.xml",
     #"https://news.google.com/rss/search?q=SEND;+education&hl=en-GB&gl=GB&ceid=GB:en",
 ]
-DEFAULT_OUTPUT_CSV = "/Wordcloud/wordcloud/bbc_education_inclusion_signals.csv"
-DEFAULT_DB_PATH = "/Wordcloud/wordcloud/bbc_education_inclusion.db"
+BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_OUTPUT_CSV = str(BASE_DIR / "bbc_education_inclusion_signals.csv")
+DEFAULT_DB_PATH = str(BASE_DIR / "bbc_education_inclusion.db")
+DEFAULT_DISCOVERED_OUTPUT_CSV = str(BASE_DIR / "discovered_terms_preview.csv")
 REQUEST_TIMEOUT = 20
 MAX_EXCERPT_CHARS = 1200
 MAX_SUMMARY_CHARS = 750
@@ -995,7 +997,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--discovered-output-csv",
-        default="discovered_terms_preview.csv",
+        default=DEFAULT_DISCOVERED_OUTPUT_CSV,
         help="CSV path for aggregated discovered terms preview.",
     )
     parser.add_argument(

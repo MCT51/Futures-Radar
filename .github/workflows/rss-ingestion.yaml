@@ -28,7 +28,11 @@ jobs:
 
       - name: Run RSS ingestion
         run: |
-          python3 Wordcloud/wordcloud/bbc_inclusion_signals.py --term-mode baseline
+          python3 Wordcloud/wordcloud/bbc_inclusion_signals.py \
+            --term-mode baseline \
+            --db-path Wordcloud/wordcloud/bbc_education_inclusion.db \
+            --output Wordcloud/wordcloud/bbc_education_inclusion_signals.csv \
+            --discovered-output-csv Wordcloud/wordcloud/discovered_terms_preview.csv
 
       - name: Run sentiment analysis
         env:

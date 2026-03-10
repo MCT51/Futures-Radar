@@ -1,8 +1,10 @@
 import csv
 import sqlite3
+from pathlib import Path
 
 
-DEFAULT_DB_PATH = "Wordcloud/wordcloud/bbc_education_inclusion.db"
+BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_DB_PATH = str(BASE_DIR / "bbc_education_inclusion.db")
 DEFAULT_SENTIMENT_RESULTS_PATH = "Sentiment/sentiment_results.csv"
 
 

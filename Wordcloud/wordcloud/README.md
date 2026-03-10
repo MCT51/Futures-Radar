@@ -6,9 +6,9 @@ This project ingests BBC RSS articles, filters for education + inclusion relevan
 
 - `bbc_inclusion_signals.py`: ingestion + filtering + CSV export + SQLite updates
 - `wordcloud_server.py`: local web server for word cloud, article drill-down, and trend chart
-- `bbc_education_inclusion.db`: SQLite database output
-- `bbc_education_inclusion_signals.csv`: article-level CSV output
-- `discovered_terms_preview.csv`: discovered-term preview output
+- `Wordcloud/wordcloud/bbc_education_inclusion.db`: SQLite database output
+- `Wordcloud/wordcloud/bbc_education_inclusion_signals.csv`: article-level CSV output
+- `Wordcloud/wordcloud/discovered_terms_preview.csv`: discovered-term preview output
 
 ## 1) Run the Pipeline
 
@@ -24,8 +24,8 @@ This will:
   - `https://feeds.bbci.co.uk/news/education/rss.xml`
 - keep only relevant education + inclusion articles
 - write/update:
-  - `bbc_education_inclusion_signals.csv` (cumulative upsert; existing rows retained, matching rows updated)
-  - `bbc_education_inclusion.db`
+  - `Wordcloud/wordcloud/bbc_education_inclusion_signals.csv` (cumulative upsert; existing rows retained, matching rows updated)
+  - `Wordcloud/wordcloud/bbc_education_inclusion.db`
 
 ### Main options
 
@@ -44,15 +44,17 @@ Important flags:
 ### Example: baseline run
 
 ```bash
-python3 bbc_inclusion_signals.py --term-mode baseline --temporal-lookback-days 7\
-                              --db-path /your/local/dbpath
+python3 bbc_inclusion_signals.py --term-mode baseline --temporal-lookback-days 7 \
+  --db-path Wordcloud/wordcloud/bbc_education_inclusion.db \
+  --output Wordcloud/wordcloud/bbc_education_inclusion_signals.csv \
+  --discovered-output-csv Wordcloud/wordcloud/discovered_terms_preview.csv
 ```
 
 ## 2) Run the Word Cloud App
 
 ```bash
-python3 wordcloud_server.py --db-path /Wordcloud/wordcloud/bbc_education_inclusion.db --port 8765  \ --trend-lookback-days 7 \
---trend-limit 12
+python3 wordcloud_server.py --db-path Wordcloud/wordcloud/bbc_education_inclusion.db --port 8765 \
+  --trend-lookback-days 7 --trend-limit 12
 ```
 
 Open:

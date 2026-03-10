@@ -9,6 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_DB_PATH = str(BASE_DIR / "bbc_education_inclusion.db")
 
 HTML_PAGE = """<!doctype html>
 <html lang="en">
@@ -358,8 +360,8 @@ HTML_PAGE = """<!doctype html>
     }
 
     function drawCloud(data) {
-      // Keep fewer terms and larger spacing so smaller words remain selectable.
-      const renderData = data.slice(0, 24);
+      // Render a broader set of terms while keeping legibility.
+      const renderData = data.slice(0, 80);
       const maxRaw = Math.max(...renderData.map(d => d.value), 1);
       const scaledData = renderData.map(d => {
         const normalized = d.value / maxRaw;
@@ -376,9 +378,9 @@ HTML_PAGE = """<!doctype html>
           shape: "circle",
           width: "100%",
           height: "100%",
-          sizeRange: [28, 180],
+          sizeRange: [14, 90],
           rotationRange: [-20, 20],
-          gridSize: 10,
+          gridSize: 7,
           drawOutOfBound: false,
           shape: "circle",
           textStyle: {
@@ -907,11 +909,11 @@ def validate_database(db_path: Path) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Interactive word cloud server for education-inclusion term stats.")
-    parser.add_argument("--db-path", default="/Wordcloud/wordcloud/bbc_education_inclusion.db", help="Path to SQLite DB")
+    parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="Path to SQLite DB")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind")
     parser.add_argument("--port", type=int, default=8765, help="Port to bind")
     parser.add_argument("--min-frequency", type=int, default=2, help="Minimum total term frequency for cloud")
-    parser.add_argument("--limit", type=int, default=100, help="Maximum number of terms in cloud")
+    parser.add_argument("--limit", type=int, default=200, help="Maximum number of terms in cloud")
     parser.add_argument("--trend-lookback-days", type=int, default=7, help="Lookback window for trend panel")
     parser.add_argument("--trend-limit", type=int, default=12, help="Max terms shown in trend panel")
     return parser
