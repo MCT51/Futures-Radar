@@ -50,6 +50,12 @@ jobs:
 
       - name: Commit and push changes
         run: | 
+          git lfs track "Wordcloud/wordcloud/bbc_education_inclusion.db"
+          git add .gitattributes
+          git commit -m "Enable Git LFS for large files"
+          git add Wordcloud/wordcloud/bbc_education_inclusion.db
+          git commit -m "Add bbc_education_inclusion.db via Git LFS"
+          
           git add .
           git diff --cached --quiet || git commit -m "update data [skip ci]"
           git push
