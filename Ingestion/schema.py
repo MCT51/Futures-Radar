@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from itertools import product
+from itertools import combinations, product
 import json
 from pathlib import Path
 from typing import Any
@@ -251,111 +251,110 @@ class Schema:
         for col in self.expected_final_columns():
             if col not in out.columns:
                 out[col] = pd.NA
-        for col in self.primary_column_names():
+        pcols = self.primary_column_names()
+        for col in pcols:
             if col in out.columns:
                 out[col] = out[col].astype(str)
 
-        pcols = self.primary_column_names()
+        non_total_mask = pd.Series(True, index=out.index)
+        for col in pcols:
+            non_total_mask &= out[col].astype(str).ne(TOTAL_VALUE)
+        base = out.loc[non_total_mask].copy()
 
-        # Ensure all expected total rows exist (upsert behavior).
-        existing_keys = {
-            tuple(str(v) for v in row)
-            for row in out[pcols].itertuples(index=False, name=None)
-        }
-        rows_to_add: list[dict[str, object]] = []
-        pv_values = [pv.expected_values_for_final() for pv in self.primary_variables]
-        for combo in product(*pv_values):
-            combo_t = tuple(str(v) for v in combo)
-            if not any(v == TOTAL_VALUE for v in combo_t):
-                continue
-            if combo_t in existing_keys:
-                continue
-            rec = {col: val for col, val in zip(pcols, combo_t)}
-            for col in out.columns:
-                if col not in rec:
-                    rec[col] = pd.NA
-            rows_to_add.append(rec)
+        if base.empty:
+            return out
 
-        if rows_to_add:
-            add_df = pd.DataFrame(rows_to_add, columns=out.columns)
-            out = pd.concat([out, add_df], ignore_index=True, sort=False)
-
-        def _source_mask_for_target(target_row: pd.Series) -> pd.Series:
-            mask = pd.Series(True, index=out.index)
-            for pv in self.primary_variables:
-                tval = str(target_row[pv.column_name])
-                if tval == TOTAL_VALUE:
-                    mask &= out[pv.column_name].astype(str).ne(TOTAL_VALUE)
-                else:
-                    mask &= out[pv.column_name].astype(str).eq(tval)
-            return mask
-
-        def _has_blank_or_na(series: pd.Series) -> pd.Series:
+        def _blank_mask(series: pd.Series) -> pd.Series:
             return series.map(lambda v: pd.isna(v) or (isinstance(v, str) and v.strip() == ""))
 
-        total_row_mask = pd.Series(False, index=out.index)
-        for col in pcols:
-            total_row_mask |= out[col].astype(str).eq(TOTAL_VALUE)
+        def _aggregate_distribution(frame: pd.DataFrame, keep_cols: list[str], count_cols: list[str]) -> pd.DataFrame:
+            src = frame[keep_cols + count_cols].copy()
+            for c in count_cols:
+                src[c] = pd.to_numeric(src[c], errors="coerce")
+            if keep_cols:
+                return src.groupby(keep_cols, dropna=False, as_index=False)[count_cols].sum(min_count=1)
+            sums = src[count_cols].sum(axis=0, min_count=1)
+            return pd.DataFrame([{**{c: sums[c] for c in count_cols}}])
 
-        total_indices = out.index[total_row_mask].tolist()
+        def _aggregate_quant_scalar(frame: pd.DataFrame, keep_cols: list[str], value_col: str) -> pd.DataFrame:
+            src = frame[keep_cols + [value_col]].copy()
+            src[value_col] = pd.to_numeric(src[value_col], errors="coerce")
+            if keep_cols:
+                return src.groupby(keep_cols, dropna=False, as_index=False)[value_col].mean()
+            return pd.DataFrame([{value_col: src[value_col].mean()}])
 
-        for idx in total_indices:
-            target_row = out.loc[idx]
-            source_mask = _source_mask_for_target(target_row)
-            source = out.loc[source_mask]
+        def _pick_mode(series: pd.Series, ordered_keys: list[str]) -> object:
+            src = series[~_blank_mask(series)].astype(str)
+            if src.empty:
+                return pd.NA
+            counts = src.value_counts()
+            if counts.empty:
+                return pd.NA
+            max_count = counts.max()
+            tied = set(counts[counts == max_count].index.tolist())
+            chosen = next((k for k in ordered_keys if k in tied), None)
+            return chosen if chosen is not None else sorted(tied)[0]
 
-            for sv in self.secondary_variables:
-                if isinstance(sv, DistributionSecondaryVariable):
-                    count_cols = sv.count_columns()
-                    src = source[count_cols].copy()
-                    for c in count_cols:
-                        src[c] = pd.to_numeric(src[c], errors="coerce")
+        def _aggregate_qual_scalar(frame: pd.DataFrame, keep_cols: list[str], value_col: str, ordered_keys: list[str]) -> pd.DataFrame:
+            src = frame[keep_cols + [value_col]].copy()
+            if keep_cols:
+                grouped = (
+                    src.groupby(keep_cols, dropna=False)[value_col]
+                    .apply(lambda s: _pick_mode(s, ordered_keys))
+                    .reset_index(name=value_col)
+                )
+                return grouped
+            return pd.DataFrame([{value_col: _pick_mode(src[value_col], ordered_keys)}])
 
-                    if source.empty:
-                        for c in count_cols:
-                            out.at[idx, c] = pd.NA
+        rollup_frames: list[pd.DataFrame] = []
+        n_pcols = len(pcols)
+        for keep_size in range(n_pcols - 1, -1, -1):
+            for keep_cols_tuple in combinations(pcols, keep_size):
+                keep_cols = list(keep_cols_tuple)
+                agg_df: pd.DataFrame | None = None
+
+                for sv in self.secondary_variables:
+                    current: pd.DataFrame | None = None
+                    if isinstance(sv, DistributionSecondaryVariable):
+                        current = _aggregate_distribution(base, keep_cols, sv.count_columns())
+                    elif isinstance(sv, QuantitativeScalarSecondaryVariable):
+                        current = _aggregate_quant_scalar(base, keep_cols, sv.value_column)
+                    elif isinstance(sv, QualitativeScalarSecondaryVariable):
+                        current = _aggregate_qual_scalar(base, keep_cols, sv.value_column, sv.keys())
+                    elif isinstance(sv, ScalarSecondaryVariable):
                         continue
 
-                    sums = src.sum(axis=0, min_count=1)
-                    for c in count_cols:
-                        out.at[idx, c] = sums[c]
-                    continue
-
-                if isinstance(sv, QuantitativeScalarSecondaryVariable):
-                    col = sv.value_column
-                    src = pd.to_numeric(source[col], errors="coerce") if col in source.columns else pd.Series(dtype=float)
-                    src = src.dropna()
-                    if source.empty or src.empty:
-                        out.at[idx, col] = pd.NA
+                    if current is None:
+                        continue
+                    if agg_df is None:
+                        agg_df = current
+                    elif keep_cols:
+                        agg_df = agg_df.merge(current, on=keep_cols, how="outer")
                     else:
-                        out.at[idx, col] = src.mean()
+                        agg_df = pd.concat([agg_df.reset_index(drop=True), current.reset_index(drop=True)], axis=1)
+
+                if agg_df is None:
                     continue
 
-                if isinstance(sv, QualitativeScalarSecondaryVariable):
-                    col = sv.value_column
-                    if col not in source.columns or source.empty:
-                        out.at[idx, col] = pd.NA
-                        continue
-                    src = source[col]
-                    src = src[~_has_blank_or_na(src)]
-                    if src.empty:
-                        out.at[idx, col] = pd.NA
-                        continue
+                for col in pcols:
+                    if col not in agg_df.columns:
+                        agg_df[col] = TOTAL_VALUE
+                agg_df = agg_df[pcols + [c for c in agg_df.columns if c not in pcols]]
+                rollup_frames.append(agg_df)
 
-                    counts = src.astype(str).value_counts()
-                    if counts.empty:
-                        out.at[idx, col] = pd.NA
-                        continue
-                    max_count = counts.max()
-                    tied = set(counts[counts == max_count].index.tolist())
-                    # Deterministic tie-break using schema key order.
-                    chosen = next((k for k in sv.keys() if k in tied), None)
-                    out.at[idx, col] = chosen if chosen is not None else sorted(tied)[0]
-                    continue
+        if not rollup_frames:
+            return out
 
-                if isinstance(sv, ScalarSecondaryVariable):
-                    # Unknown scalar subtype: leave unchanged.
-                    continue
+        total_updates = pd.concat(rollup_frames, ignore_index=True, sort=False)
+        total_updates = total_updates.drop_duplicates(subset=pcols, keep="last")
+
+        value_cols = [c for c in total_updates.columns if c not in pcols]
+        out = out.merge(total_updates, on=pcols, how="left", suffixes=("", "_total"))
+        for col in value_cols:
+            total_col = f"{col}_total"
+            if total_col in out.columns:
+                out[col] = out[total_col].combine_first(out[col])
+                out = out.drop(columns=[total_col])
 
         return out
 
