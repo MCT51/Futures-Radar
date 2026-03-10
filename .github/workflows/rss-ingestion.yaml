@@ -44,7 +44,9 @@ jobs:
         run: |
           git config user.name 'github-actions'
           git config user.email 'github-actions@github.com'
-          git pull
+          git fetch origin main
+          git rebase origin/main
+          
           git add .
           git diff --cached --quiet || git commit -m "update data [skip ci]"
           git push
