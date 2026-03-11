@@ -5,6 +5,9 @@ on:
     - cron: '0 0 * * *' # Runs every day at midnight UTC
   workflow_dispatch: # Manual triggering
 
+permissions:
+  contents: write
+
 jobs:
   ingest-rss:
     runs-on: ubuntu-latest
@@ -12,6 +15,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Git
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git lfs install
+          git lfs pull
+          
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -25,11 +36,11 @@ jobs:
 
       - name: Run RSS ingestion
         run: |
-          python3 Qingyu/qingyu/bbc_inclusion_signals.py --term-mode baseline
-
-      - name: Create article text files
-        run: |
-          python3 Qingyu/qingyu/article_to_text.py
+          python3 Wordcloud/wordcloud/bbc_inclusion_signals.py \
+            --term-mode baseline \
+            --db-path Wordcloud/wordcloud/bbc_education_inclusion.db \
+            --output Wordcloud/wordcloud/bbc_education_inclusion_signals.csv \
+            --discovered-output-csv Wordcloud/wordcloud/discovered_terms_preview.csv
 
       - name: Run sentiment analysis
         env:
@@ -37,18 +48,14 @@ jobs:
         run: |
           python3 Sentiment/sentiment.py
 
-      - name: Insert sentiment results into database
-        run: |
-          python3 Qingyu/qingyu/sentiment_insertion.py
-
-      - name: Run cleanup script
-        run: |
-          python3 Sentiment/cleanup.py
-
       - name: Commit and push changes
-        run: |
-          git config user.name 'github-actions'
-          git config user.email 'github-actions@github.com'
+        run: | 
+          git lfs track "Wordcloud/wordcloud/bbc_education_inclusion.db"
+          git add .gitattributes
+          git commit -m "Enable Git LFS for large files"
+          git add Wordcloud/wordcloud/bbc_education_inclusion.db
+          git commit -m "Add bbc_education_inclusion.db via Git LFS"
+          
           git add .
           git diff --cached --quiet || git commit -m "update data [skip ci]"
           git push

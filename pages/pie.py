@@ -35,6 +35,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DATASET_PATHS: dict[str, Path] = {
     "SEN — Age & Sex": _REPO_ROOT / "Ingestion/test/output/sen_age_sex_structured.json",
     "FSM — Ethnicity": _REPO_ROOT / "Ingestion/test/output/fsm_ethnicity_structured.json",
+    "FSM - Datasetbuilder test": _REPO_ROOT / "Ingestion/test/output/fsm_finaltest_structured.json",
 }
 
 _datasets: dict[str, StructuredData] = {}
