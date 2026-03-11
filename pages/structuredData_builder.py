@@ -11,6 +11,7 @@ from Ingestion.dataset_builder import (
     parse_structured_from_csv,
     save_structured_data,
 )
+from pages._structured_dataset_registry import load_dataset
 
 
 dash.register_page(__name__, path="/builder", name="Dataset Builder")
@@ -541,6 +542,7 @@ def save_stage2(
             dataset_name=dataset_name,
             out_dir=OUT_DIR,
         )
+        load_dataset.cache_clear()
     except Exception as exc:
         return html.Div(str(exc), style={"color": "#c0392b"})
 
