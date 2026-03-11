@@ -80,6 +80,7 @@ class SecondarySpec:
 
     # scalar
     value_col: str | None = None
+    aggregation: str | None = None
 
     # distribution (long form input)
     category_col: str | None = None
@@ -203,6 +204,7 @@ def build_structured_from_csv(
                     display_name=spec.display_name,
                     csv_dict={val_col: spec.display_name},
                     variable_name=spec.name,
+                    aggregation=spec.aggregation or "sum",
                 )
             )
 

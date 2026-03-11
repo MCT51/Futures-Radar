@@ -97,6 +97,17 @@ layout = html.Div(
                     placeholder="Value column (required for scalar types)",
                     style={"width": "700px"},
                 ),
+                html.Label("Aggregation method", style={"display": "block", "marginTop": "8px"}),
+                dcc.Dropdown(
+                    id="builder-quant-aggregation",
+                    options=[
+                        {"label": "Sum", "value": "sum"},
+                        {"label": "Mean", "value": "mean"},
+                    ],
+                    value="sum",
+                    clearable=False,
+                    style={"width": "220px", "marginTop": "8px"},
+                ),
             ],
             id="builder-scalar-controls",
             style={"display": "none", "marginBottom": "12px"},
@@ -260,6 +271,7 @@ def show_filters(filters):
     State("builder-sec-display", "value"),
     State("builder-sec-type", "value"),
     State("builder-value-col", "value"),
+    State("builder-quant-aggregation", "value"),
     State("builder-cat-col", "value"),
     State("builder-cnt-col", "value"),
     State("builder-csv-to-number", "value"),
@@ -277,6 +289,7 @@ def build(
     sec_display,
     sec_type,
     value_col,
+    quant_aggregation,
     cat_col,
     cnt_col,
     csv_to_number_raw,
@@ -298,6 +311,8 @@ def build(
         if not value_col:
             return html.Div("Select a value column for scalar variables.", style={"color": "#c0392b"})
         spec_kwargs["value_col"] = value_col
+        if sec_type == "quant_scalar":
+            spec_kwargs["aggregation"] = quant_aggregation or "sum"
     elif sec_type in ("qual_dist", "quant_dist"):
         if not cat_col or not cnt_col:
             return html.Div("Category and count columns are required for distribution variables.", style={"color": "#c0392b"})
