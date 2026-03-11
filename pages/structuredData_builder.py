@@ -97,14 +97,13 @@ layout = html.Div(
                     placeholder="Value column (required for scalar types)",
                     style={"width": "700px"},
                 ),
-                html.Label("Aggregation method", style={"display": "block", "marginTop": "8px"}),
                 dcc.Dropdown(
                     id="builder-quant-aggregation",
                     options=[
                         {"label": "Sum", "value": "sum"},
                         {"label": "Mean", "value": "mean"},
                     ],
-                    value="sum",
+                    placeholder="Aggregation method (required for quantitative scalars)",
                     clearable=False,
                     style={"width": "220px", "marginTop": "8px"},
                 ),
