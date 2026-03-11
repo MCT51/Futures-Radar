@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from itertools import combinations, product
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 import pandas as pd
@@ -164,16 +165,31 @@ class Schema:
                     f"{stage}: unknown values in primary column '{pv.column_name}': {unknown[:10]}"
                 )
 
+    @staticmethod
+    def _normalize_category_value(value: Any) -> str:
+        text = str(value).strip()
+        if text == "nan":
+            return text
+        if re.fullmatch(r"[+-]?(?:\d+)(?:\.0+)?", text):
+            try:
+                number = float(text)
+            except ValueError:
+                return text
+            if number.is_integer():
+                return str(int(number))
+        return text
+
     def _check_mode_values(self, df: pd.DataFrame, *, stage: str) -> None:
         for sv in self.secondary_variables:
             if isinstance(sv, DistributionSecondaryVariable):
                 col = sv.mode_column()
                 if col not in df.columns:
                     continue
-                valid = set(sv.keys())
+                valid = {self._normalize_category_value(v) for v in sv.keys()}
                 series = df[col]
                 non_null = series[~series.isna()].astype(str)
-                invalid = sorted(set(non_null.unique()) - valid)
+                normalized = {self._normalize_category_value(v) for v in non_null.unique()}
+                invalid = sorted(set(normalized) - valid)
                 if invalid:
                     raise ValueError(
                         f"{stage}: invalid mode values in '{col}'. Must be csv_dict keys. "
@@ -187,9 +203,10 @@ class Schema:
             col = sv.value_column
             if col not in df.columns:
                 continue
-            valid = set(sv.keys())
+            valid = {self._normalize_category_value(v) for v in sv.keys()}
             non_null = df[col][~df[col].isna()].astype(str)
-            invalid = sorted(set(non_null.unique()) - valid)
+            normalized = {self._normalize_category_value(v) for v in non_null.unique()}
+            invalid = sorted(set(normalized) - valid)
             if invalid:
                 raise ValueError(
                     f"{stage}: invalid values in qualitative scalar column '{col}'. "

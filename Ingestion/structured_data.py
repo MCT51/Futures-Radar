@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -161,7 +162,7 @@ class StructuredData:
         meta_csv_path: str | None
         if store_relative_csv_path:
             try:
-                meta_csv_path = str(csv_path.relative_to(json_path.parent))
+                meta_csv_path = os.path.relpath(csv_path.resolve(), start=json_path.parent.resolve())
             except ValueError:
                 meta_csv_path = str(csv_path)
         else:
