@@ -10,11 +10,17 @@ import pandas as pd
 try:
     from Ingestion.schema import Schema
     from Ingestion.primary_variable import TOTAL_VALUE
-    from Ingestion.secondary_variable import QualitativeDistributionVariable
+    from Ingestion.secondary_variable import (
+        QualitativeDistributionVariable,
+        QuantitativeScalarSecondaryVariable,
+    )
 except ModuleNotFoundError:  # Support running from Ingestion/
     from schema import Schema
     from primary_variable import TOTAL_VALUE
-    from secondary_variable import QualitativeDistributionVariable
+    from secondary_variable import (
+        QualitativeDistributionVariable,
+        QuantitativeScalarSecondaryVariable,
+    )
 
 
 DefinedMap = dict[tuple[tuple[str, ...], str], bool]
@@ -223,6 +229,7 @@ class StructuredData:
         self,
         primary_column_name: str,
         *,
+        count_secondary_name: str,
         secondary_display_name: str | None = None,
         secondary_variable_name: str | None = None,
     ) -> "StructuredData":
@@ -231,7 +238,7 @@ class StructuredData:
 
         The selected primary dimension is removed from row identity. For each remaining
         primary-key row, a new distribution is created whose categories are the original
-        primary values and whose counts are row frequencies from the original table.
+        primary values and whose counts are summed from the specified scalar secondary.
         """
         target = next(
             (pv for pv in self.schema.primary_variables if pv.column_name == primary_column_name),
@@ -252,6 +259,15 @@ class StructuredData:
             csv_dict=dict(target.csv_to_display),
             variable_name=secondary_variable_name,
         )
+        try:
+            count_secondary = self.schema.get_secondary(count_secondary_name)
+        except KeyError as exc:
+            raise KeyError(f"Unknown scalar secondary '{count_secondary_name}'") from exc
+        if not isinstance(count_secondary, QuantitativeScalarSecondaryVariable):
+            raise ValueError(
+                f"Flatten requires a quantitative scalar count basis; '{count_secondary_name}' is not one."
+            )
+        count_col = count_secondary.value_column
 
         # Generate totals/summaries on the full source first, then keep rows where
         # the moved dimension is aggregated at TOTAL.
@@ -261,9 +277,12 @@ class StructuredData:
         base = base[base[primary_column_name].astype(str).eq(TOTAL_VALUE)].copy()
         base = base.drop(columns=[primary_column_name])
 
-        # Populate moved-dimension distribution counts using source row frequencies.
+        # Populate moved-dimension distribution counts using the explicit scalar count basis.
         source = self.dataframe.copy()
+        for pv in self.schema.primary_variables:
+            source = source[source[pv.column_name].astype(str).ne(TOTAL_VALUE)]
         source[primary_column_name] = source[primary_column_name].astype(str)
+        source[count_col] = pd.to_numeric(source[count_col], errors="coerce")
         for key in moved_secondary.keys():
             col = moved_secondary.count_column(key)
             base[col] = pd.NA
@@ -280,9 +299,13 @@ class StructuredData:
             subset = source.loc[mask]
             if subset.empty:
                 continue
-            counts = subset[primary_column_name].value_counts()
+            counts = (
+                subset.groupby(primary_column_name, dropna=False)[count_col]
+                .sum(min_count=1)
+            )
             for key in moved_secondary.keys():
-                base.at[idx, moved_secondary.count_column(key)] = int(counts.get(key, 0))
+                value = counts.get(key, 0)
+                base.at[idx, moved_secondary.count_column(key)] = value
 
         new_schema = Schema(
             primary_variables=remaining_primary,
