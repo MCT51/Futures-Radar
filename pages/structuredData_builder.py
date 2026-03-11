@@ -1,18 +1,24 @@
 import json
+from pathlib import Path
+from uuid import uuid4
 
 import dash
-from dash import dcc, html, Input, Output, State, callback
-from pathlib import Path
 import pandas as pd
+from dash import ALL, Input, Output, State, callback, dcc, html
 
-from Ingestion.dataset_builder import build_structured_from_csv, SecondarySpec
+from Ingestion.dataset_builder import (
+    SecondarySpec,
+    parse_structured_from_csv,
+    save_structured_data,
+)
 
 
 dash.register_page(__name__, path="/builder", name="Dataset Builder")
 
 ROOT = Path(__file__).resolve().parents[1]
-RAW_DIR = ROOT / "Data"            # where users pick raw datasets from
+RAW_DIR = ROOT / "Data"
 OUT_DIR = ROOT / "Ingestion" / "test" / "output"
+PARSED_STRUCTURED_CACHE = {}
 
 
 def list_csvs():
@@ -21,8 +27,54 @@ def list_csvs():
     return []
 
 
+def build_secondary_spec(
+    *,
+    sec_name,
+    sec_display,
+    sec_type,
+    value_col,
+    quant_aggregation,
+    cat_col,
+    cnt_col,
+    csv_to_number_raw,
+):
+    spec_kwargs = {
+        "name": sec_name,
+        "display_name": sec_display,
+        "type": sec_type,
+    }
+
+    if sec_type in ("quant_scalar", "qual_scalar"):
+        if not value_col:
+            raise ValueError("Select a value column for scalar variables.")
+        spec_kwargs["value_col"] = value_col
+        if sec_type == "quant_scalar":
+            if not quant_aggregation:
+                raise ValueError("Select an aggregation method for quantitative scalars.")
+            spec_kwargs["aggregation"] = quant_aggregation
+    elif sec_type in ("qual_dist", "quant_dist"):
+        if not cat_col or not cnt_col:
+            raise ValueError("Category and count columns are required for distribution variables.")
+        spec_kwargs["category_col"] = cat_col
+        spec_kwargs["count_col"] = cnt_col
+        if sec_type == "quant_dist" and csv_to_number_raw:
+            try:
+                mapping = json.loads(csv_to_number_raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"CSV-to-number mapping must be valid JSON: {exc}") from exc
+            if not isinstance(mapping, dict):
+                raise ValueError("CSV-to-number mapping must be a JSON object.")
+            spec_kwargs["csv_to_number"] = mapping
+    else:
+        raise ValueError("Unsupported secondary variable type.")
+
+    return SecondarySpec(**spec_kwargs)
+
+
 layout = html.Div(
     [
+        dcc.Store(id="builder-filters", data=[]),
+        dcc.Store(id="builder-parse-token"),
         html.H2("Dataset Builder"),
         html.Div(
             [
@@ -38,7 +90,6 @@ layout = html.Div(
         ),
         html.Div(id="builder-columns"),
         html.Hr(),
-
         html.H4("1) Primary variables"),
         dcc.Dropdown(
             id="builder-primaries",
@@ -62,18 +113,17 @@ layout = html.Div(
             ],
             style={"marginTop": "8px", "marginBottom": "16px", "display": "flex"},
         ),
-
         html.H4("2) Secondary variable"),
         html.Div(
             [
                 dcc.Input(
                     id="builder-sec-name",
-                    placeholder="internal slug (lowercase, no spaces, e.g. fsm_eligibility)",
+                    placeholder="internal slug (lowercase, no spaces, e.g. headcount)",
                     style={"width": "340px"},
                 ),
                 dcc.Input(
                     id="builder-sec-display",
-                    placeholder="display name (e.g. FSM Eligibility)",
+                    placeholder="display name (e.g. Headcount)",
                     style={"width": "340px", "marginLeft": "8px"},
                 ),
             ],
@@ -104,8 +154,7 @@ layout = html.Div(
                         {"label": "Mean", "value": "mean"},
                     ],
                     placeholder="Aggregation method (required for quantitative scalars)",
-                    clearable=False,
-                    style={"width": "220px", "marginTop": "8px"},
+                    style={"width": "320px", "marginTop": "8px"},
                 ),
             ],
             id="builder-scalar-controls",
@@ -117,7 +166,7 @@ layout = html.Div(
                     [
                         dcc.Dropdown(
                             id="builder-cat-col",
-                            placeholder="Category column (e.g. fsm)",
+                            placeholder="Category column (e.g. sex)",
                             style={"width": "340px"},
                         ),
                         dcc.Dropdown(
@@ -130,14 +179,13 @@ layout = html.Div(
                 ),
                 dcc.Textarea(
                     id="builder-csv-to-number",
-                    placeholder="Quantitative distributions only: optional JSON mapping, e.g. {\"0-10\": 5, \"11-20\": 15}",
+                    placeholder='Quantitative distributions only: optional JSON mapping, e.g. {"0-10": 5, "11-20": 15}',
                     style={"width": "700px", "height": "80px"},
                 ),
             ],
             id="builder-dist-controls",
             style={"display": "none", "marginBottom": "12px"},
         ),
-
         html.H4("3) Optional filters"),
         html.Div(
             [
@@ -163,21 +211,38 @@ layout = html.Div(
             ],
             style={"marginBottom": "8px"},
         ),
-        dcc.Store(id="builder-filters", data=[]),
         html.Div(id="builder-filter-list", style={"marginBottom": "12px"}),
-
-        html.H4("4) Build"),
+        html.H4("4) Parse CSV"),
         html.Div(
             [
-                dcc.Input(
-                    id="builder-dataset-name",
-                    placeholder="output dataset name (e.g. my_fsm)",
-                    style={"width": "340px"},
-                ),
-                html.Button("Build StructuredData", id="builder-build", style={"marginLeft": "8px"}),
+                html.Button("Parse to StructuredData", id="builder-parse"),
             ]
         ),
-        html.Div(id="builder-status", style={"marginTop": "12px"}),
+        html.Div(id="builder-parse-status", style={"marginTop": "12px", "marginBottom": "18px"}),
+        html.Div(
+            [
+                html.H4("5) Primary classification and save"),
+                html.Div(
+                    "Stage 2 operates on the parsed StructuredData object. Choose whether each primary is qualitative or quantitative, and provide numeric mappings for quantitative primaries.",
+                    style={"marginBottom": "12px"},
+                ),
+                html.Div(id="builder-stage2-controls"),
+                html.Div(
+                    [
+                        dcc.Input(
+                            id="builder-dataset-name",
+                            placeholder="output dataset name (e.g. sen_age_sex)",
+                            style={"width": "340px"},
+                        ),
+                        html.Button("Save StructuredData", id="builder-save", style={"marginLeft": "8px"}),
+                    ],
+                    style={"marginTop": "12px"},
+                ),
+                html.Div(id="builder-save-status", style={"marginTop": "12px"}),
+            ],
+            id="builder-stage2",
+            style={"display": "none"},
+        ),
     ],
     style={"padding": "16px"},
 )
@@ -240,8 +305,7 @@ def add_filter(n, filters, col, op, val):
     if not col or val is None:
         return filters
     if op in ("in", "not in"):
-        vals = [v.strip() for v in str(val).split(",") if v.strip()]
-        value = vals
+        value = [v.strip() for v in str(val).split(",") if v.strip()]
     else:
         value = val
     filters.append({"col": col, "op": op, "value": value})
@@ -259,10 +323,11 @@ def show_filters(filters):
 
 
 @callback(
-    Output("builder-status", "children"),
-    Input("builder-build", "n_clicks"),
+    Output("builder-parse-token", "data"),
+    Output("builder-parse-status", "children"),
+    Output("builder-stage2", "style"),
+    Input("builder-parse", "n_clicks"),
     State("builder-csv", "value"),
-    State("builder-dataset-name", "value"),
     State("builder-primaries", "value"),
     State("builder-location-primary", "value"),
     State("builder-location-display", "value"),
@@ -277,10 +342,9 @@ def show_filters(filters):
     State("builder-filters", "data"),
     prevent_initial_call=True,
 )
-def build(
+def parse_csv(
     n,
     csv_path,
-    dataset_name,
     primaries,
     location_primary,
     location_display,
@@ -294,68 +358,196 @@ def build(
     csv_to_number_raw,
     filters,
 ):
-    required = [csv_path, dataset_name, primaries, sec_name, sec_display, sec_type]
+    required = [csv_path, primaries, sec_name, sec_display, sec_type]
     if any(val in (None, "") for val in required):
-        return html.Div("Missing required fields.", style={"color": "#c0392b"})
+        return None, html.Div("Missing required fields.", style={"color": "#c0392b"}), {"display": "none"}
 
     primaries = list(primaries or [])
 
-    spec_kwargs = {
-        "name": sec_name,
-        "display_name": sec_display,
-        "type": sec_type,
-    }
-
-    if sec_type in ("quant_scalar", "qual_scalar"):
-        if not value_col:
-            return html.Div("Select a value column for scalar variables.", style={"color": "#c0392b"})
-        spec_kwargs["value_col"] = value_col
-        if sec_type == "quant_scalar":
-            spec_kwargs["aggregation"] = quant_aggregation or "sum"
-    elif sec_type in ("qual_dist", "quant_dist"):
-        if not cat_col or not cnt_col:
-            return html.Div("Category and count columns are required for distribution variables.", style={"color": "#c0392b"})
-        spec_kwargs["category_col"] = cat_col
-        spec_kwargs["count_col"] = cnt_col
-        if sec_type == "quant_dist" and csv_to_number_raw:
-            try:
-                mapping = json.loads(csv_to_number_raw)
-            except json.JSONDecodeError as exc:
-                return html.Div(f"CSV-to-number mapping must be valid JSON: {exc}", style={"color": "#c0392b"})
-            if not isinstance(mapping, dict):
-                return html.Div("CSV-to-number mapping must be a JSON object.", style={"color": "#c0392b"})
-            spec_kwargs["csv_to_number"] = mapping
-    else:
-        return html.Div("Unsupported secondary variable type.", style={"color": "#c0392b"})
-
-    spec = SecondarySpec(**spec_kwargs)
+    try:
+        spec = build_secondary_spec(
+            sec_name=sec_name,
+            sec_display=sec_display,
+            sec_type=sec_type,
+            value_col=value_col,
+            quant_aggregation=quant_aggregation,
+            cat_col=cat_col,
+            cnt_col=cnt_col,
+            csv_to_number_raw=csv_to_number_raw,
+        )
+    except Exception as exc:
+        return None, html.Div(str(exc), style={"color": "#c0392b"}), {"display": "none"}
 
     display_name_columns = None
     if location_display:
         if not location_primary:
-            return html.Div("Select the location primary column to pair with the display column.", style={"color": "#c0392b"})
+            return None, html.Div("Select the location primary column to pair with the display column.", style={"color": "#c0392b"}), {"display": "none"}
         if location_primary not in primaries:
-            return html.Div("Location primary must also be included in the primary variable list.", style={"color": "#c0392b"})
+            return None, html.Div("Location primary must also be included in the primary variable list.", style={"color": "#c0392b"}), {"display": "none"}
         display_name_columns = {location_primary: location_display}
 
     try:
-        json_out, csv_out = build_structured_from_csv(
+        structured = parse_structured_from_csv(
             raw_csv_path=csv_path,
-            dataset_name=dataset_name,
             primary_cols=primaries,
             secondary_specs=[spec],
             filters=filters,
-            out_dir=OUT_DIR,
             display_name_columns=display_name_columns,
+        )
+    except Exception as exc:
+        return None, html.Div(str(exc), style={"color": "#c0392b"}), {"display": "none"}
+
+    token = str(uuid4())
+    PARSED_STRUCTURED_CACHE[token] = structured
+    return (
+        token,
+        html.Div(
+            [
+                html.Div("Parsed successfully", style={"color": "#27ae60", "fontWeight": "600"}),
+                html.Div(f"Rows: {len(structured.dataframe)}"),
+                html.Div("Stage 2 is ready. Classify primaries and then save."),
+            ]
+        ),
+        {"display": "block"},
+    )
+
+
+@callback(
+    Output("builder-stage2-controls", "children"),
+    Input("builder-parse-token", "data"),
+)
+def render_stage2_controls(parse_token):
+    if not parse_token or parse_token not in PARSED_STRUCTURED_CACHE:
+        return html.Div("Parse a CSV first.")
+
+    structured = PARSED_STRUCTURED_CACHE[parse_token]
+    blocks = []
+    for pv in structured.schema.primary_variables:
+        mapping_rows = []
+        for csv_value in pv.values():
+            mapping_rows.append(
+                html.Div(
+                    [
+                        html.Div(csv_value, style={"width": "180px", "paddingTop": "8px"}),
+                        dcc.Input(
+                            id={"type": "builder-primary-display", "primary": pv.column_name, "value": csv_value},
+                            value=pv.csv_to_display.get(csv_value, csv_value),
+                            placeholder="Display label",
+                            style={"width": "240px", "marginLeft": "8px"},
+                        ),
+                        dcc.Input(
+                            id={"type": "builder-primary-number", "primary": pv.column_name, "value": csv_value},
+                            placeholder="Numeric value (required if quantitative)",
+                            style={"width": "240px", "marginLeft": "8px"},
+                        ),
+                    ],
+                    style={"display": "flex", "marginBottom": "6px"},
+                )
+            )
+
+        blocks.append(
+            html.Div(
+                [
+                    html.H5(f"{pv.title} ({pv.column_name})", style={"marginBottom": "8px"}),
+                    dcc.Dropdown(
+                        id={"type": "builder-primary-type", "primary": pv.column_name},
+                        options=[
+                            {"label": "Qualitative primary", "value": "qualitative"},
+                            {"label": "Quantitative primary", "value": "quantitative"},
+                        ],
+                        value="qualitative",
+                        clearable=False,
+                        style={"width": "300px", "marginBottom": "10px"},
+                    ),
+                    html.Div(mapping_rows),
+                ],
+                style={"border": "1px solid #ddd", "padding": "12px", "marginBottom": "12px"},
+            )
+        )
+
+    return blocks
+
+
+@callback(
+    Output("builder-save-status", "children"),
+    Input("builder-save", "n_clicks"),
+    State("builder-parse-token", "data"),
+    State("builder-dataset-name", "value"),
+    State({"type": "builder-primary-type", "primary": ALL}, "value"),
+    State({"type": "builder-primary-type", "primary": ALL}, "id"),
+    State({"type": "builder-primary-display", "primary": ALL, "value": ALL}, "value"),
+    State({"type": "builder-primary-display", "primary": ALL, "value": ALL}, "id"),
+    State({"type": "builder-primary-number", "primary": ALL, "value": ALL}, "value"),
+    State({"type": "builder-primary-number", "primary": ALL, "value": ALL}, "id"),
+    prevent_initial_call=True,
+)
+def save_stage2(
+    n,
+    parse_token,
+    dataset_name,
+    primary_types,
+    primary_type_ids,
+    display_values,
+    display_ids,
+    numeric_values,
+    numeric_ids,
+):
+    if not parse_token or parse_token not in PARSED_STRUCTURED_CACHE:
+        return html.Div("Parse a CSV before saving.", style={"color": "#c0392b"})
+    if not dataset_name:
+        return html.Div("Enter an output dataset name.", style={"color": "#c0392b"})
+
+    structured = PARSED_STRUCTURED_CACHE[parse_token]
+
+    type_by_primary = {item["primary"]: value for item, value in zip(primary_type_ids, primary_types)}
+    display_by_primary = {}
+    for item, value in zip(display_ids, display_values):
+        display_by_primary.setdefault(item["primary"], {})[item["value"]] = value or item["value"]
+
+    numbers_by_primary = {}
+    for item, value in zip(numeric_ids, numeric_values):
+        numbers_by_primary.setdefault(item["primary"], {})[item["value"]] = value
+
+    primary_specs = {}
+    for pv in structured.schema.primary_variables:
+        variable_type = type_by_primary.get(pv.column_name, "qualitative")
+        spec = {
+            "variable_type": variable_type,
+            "csv_to_display": display_by_primary.get(pv.column_name, dict(pv.csv_to_display)),
+        }
+        if variable_type == "quantitative":
+            csv_to_number = {}
+            for csv_value in pv.values():
+                raw_value = numbers_by_primary.get(pv.column_name, {}).get(csv_value)
+                if raw_value in (None, ""):
+                    return html.Div(
+                        f"Numeric mapping missing for primary '{pv.column_name}' value '{csv_value}'.",
+                        style={"color": "#c0392b"},
+                    )
+                try:
+                    csv_to_number[csv_value] = float(raw_value)
+                except (TypeError, ValueError):
+                    return html.Div(
+                        f"Numeric mapping for primary '{pv.column_name}' value '{csv_value}' must be numeric.",
+                        style={"color": "#c0392b"},
+                    )
+            spec["csv_to_number"] = csv_to_number
+        primary_specs[pv.column_name] = spec
+
+    try:
+        final_structured = structured.retype_primary_variables(primary_specs)
+        json_out, csv_out = save_structured_data(
+            structured=final_structured,
+            dataset_name=dataset_name,
+            out_dir=OUT_DIR,
         )
     except Exception as exc:
         return html.Div(str(exc), style={"color": "#c0392b"})
 
     return html.Div(
         [
-            html.Div("Built successfully", style={"color": "#27ae60", "fontWeight": "600"}),
+            html.Div("Saved successfully", style={"color": "#27ae60", "fontWeight": "600"}),
             html.Div(f"JSON: {json_out}"),
             html.Div(f"CSV: {csv_out}"),
-            html.Div("Now point your visualisations at the structured JSON."),
         ]
     )

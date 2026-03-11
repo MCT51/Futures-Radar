@@ -9,14 +9,18 @@ import pandas as pd
 
 try:
     from Ingestion.schema import Schema
-    from Ingestion.primary_variable import TOTAL_VALUE
+    from Ingestion.primary_variable import (
+        TOTAL_VALUE,
+        QualitativePrimaryVariable,
+        QuantitativePrimaryVariable,
+    )
     from Ingestion.secondary_variable import (
         QualitativeDistributionVariable,
         QuantitativeScalarSecondaryVariable,
     )
 except ModuleNotFoundError:  # Support running from Ingestion/
     from schema import Schema
-    from primary_variable import TOTAL_VALUE
+    from primary_variable import TOTAL_VALUE, QualitativePrimaryVariable, QuantitativePrimaryVariable
     from secondary_variable import (
         QualitativeDistributionVariable,
         QuantitativeScalarSecondaryVariable,
@@ -224,6 +228,51 @@ class StructuredData:
         if len(matched) > 1:
             raise ValueError(f"Multiple rows found for primary values: {primary_values}")
         return matched.iloc[0]
+
+    def retype_primary_variables(
+        self,
+        primary_specs: dict[str, dict[str, Any]],
+    ) -> "StructuredData":
+        new_primary_variables = []
+        for pv in self.schema.primary_variables:
+            spec = primary_specs.get(pv.column_name, {})
+            variable_type = spec.get("variable_type", "qualitative")
+            csv_to_display = dict(spec.get("csv_to_display") or pv.csv_to_display)
+            if variable_type == "quantitative":
+                csv_to_number_raw = spec.get("csv_to_number") or {}
+                csv_to_number = {str(k): float(v) for k, v in csv_to_number_raw.items()}
+                new_primary_variables.append(
+                    QuantitativePrimaryVariable(
+                        title=pv.title,
+                        column_name=pv.column_name,
+                        csv_to_display=csv_to_display,
+                        variable_name=pv.variable_name,
+                        csv_to_number=csv_to_number,
+                    )
+                )
+            else:
+                new_primary_variables.append(
+                    QualitativePrimaryVariable(
+                        title=pv.title,
+                        column_name=pv.column_name,
+                        csv_to_display=csv_to_display,
+                        variable_name=pv.variable_name,
+                    )
+                )
+
+        new_schema = Schema(
+            primary_variables=new_primary_variables,
+            secondary_variables=self.schema.secondary_variables,
+            strict_complete_grid=self.schema.strict_complete_grid,
+            allow_empty_entries=self.schema.allow_empty_entries,
+            undefined_policy=self.schema.undefined_policy,
+        )
+        new_schema.checkCSV(self.dataframe)
+        return StructuredData(
+            dataframe=self.dataframe.copy(),
+            schema=new_schema,
+            defined_map=dict(self.defined_map),
+        )
 
     def flatten_primary_to_secondary(
         self,

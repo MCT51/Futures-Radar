@@ -6,11 +6,8 @@ from typing import Any, Literal
 
 import pandas as pd
 
-# Adjust these imports to your repo layout:
-# If your ingestion code is in Ingestion/test/, use Ingestion.test.*
 from Ingestion.primary_variable import (
     QualitativePrimaryVariable,
-    QuantitativePrimaryVariable,
 )
 from Ingestion.secondary_variable import (
     QuantitativeScalarSecondaryVariable,
@@ -91,24 +88,15 @@ class SecondarySpec:
     csv_to_number: dict[str, float] | None = None
 
 
-def build_structured_from_csv(
+def parse_structured_from_csv(
     *,
     raw_csv_path: str | Path,
-    dataset_name: str,
     primary_cols: list[str],
     secondary_specs: list[SecondarySpec],
     filters: list[dict[str, Any]] | None,
-    out_dir: str | Path,
     display_name_columns: dict[str, str] | None = None,
-) -> tuple[Path, Path]:
-    """
-    Produces:
-      out_dir/{dataset_name}_structured.csv
-      out_dir/{dataset_name}_structured.json
-    """
+) -> StructuredData:
     raw_csv_path = Path(raw_csv_path)
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     df_raw = pd.read_csv(raw_csv_path)
     df_raw.columns = df_raw.columns.str.strip()
@@ -119,7 +107,7 @@ def build_structured_from_csv(
     display_name_columns = display_name_columns or {}
 
     # --- Build PrimaryVariables ---
-    primary_vars: list[PrimaryVariable] = []
+    primary_vars = []
     for col in primary_cols:
         # mapping raw->display (identity by default)
         vals = (
@@ -143,32 +131,13 @@ def build_structured_from_csv(
             mapping_df[disp_col] = mapping_df[disp_col].astype(str).str.strip()
             mapping_df = mapping_df.drop_duplicates(subset=col)
             csv_to_display.update(dict(zip(mapping_df[col], mapping_df[disp_col])))
-        csv_to_number = None
-        numeric_values: dict[str, float] = {}
-        is_quantitative = True
-        for raw_value in vals:
-            try:
-                numeric_values[raw_value] = float(raw_value)
-            except (TypeError, ValueError):
-                is_quantitative = False
-                break
-        if is_quantitative and numeric_values:
-            primary_vars.append(
-                QuantitativePrimaryVariable(
-                    title=col.replace("_", " ").title(),
-                    column_name=col,
-                    csv_to_display=csv_to_display,
-                    csv_to_number=numeric_values,
-                )
+        primary_vars.append(
+            QualitativePrimaryVariable(
+                title=col.replace("_", " ").title(),
+                column_name=col,
+                csv_to_display=csv_to_display,
             )
-        else:
-            primary_vars.append(
-                QualitativePrimaryVariable(
-                    title=col.replace("_", " ").title(),
-                    column_name=col,
-                    csv_to_display=csv_to_display,
-                )
-            )
+        )
 
     # --- Build a "raw for schema" dataframe ---
     # Start with just the primary columns
@@ -356,10 +325,42 @@ def build_structured_from_csv(
     df_strict = schema.generateAverages(df_strict)
     schema.checkCSV(df_strict)
 
-    structured = StructuredData(dataframe=df_strict, schema=schema)
+    return StructuredData(dataframe=df_strict, schema=schema)
 
+
+def save_structured_data(
+    *,
+    structured: StructuredData,
+    dataset_name: str,
+    out_dir: str | Path,
+) -> tuple[Path, Path]:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
     csv_out = out_dir / f"{dataset_name}_structured.csv"
     json_out = out_dir / f"{dataset_name}_structured.json"
     structured.save(json_path=json_out, csv_path=csv_out, include_schema=True)
-
     return json_out, csv_out
+
+
+def build_structured_from_csv(
+    *,
+    raw_csv_path: str | Path,
+    dataset_name: str,
+    primary_cols: list[str],
+    secondary_specs: list[SecondarySpec],
+    filters: list[dict[str, Any]] | None,
+    out_dir: str | Path,
+    display_name_columns: dict[str, str] | None = None,
+) -> tuple[Path, Path]:
+    structured = parse_structured_from_csv(
+        raw_csv_path=raw_csv_path,
+        primary_cols=primary_cols,
+        secondary_specs=secondary_specs,
+        filters=filters,
+        display_name_columns=display_name_columns,
+    )
+    return save_structured_data(
+        structured=structured,
+        dataset_name=dataset_name,
+        out_dir=out_dir,
+    )
