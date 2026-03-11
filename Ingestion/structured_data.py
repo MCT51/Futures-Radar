@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from itertools import combinations
 import json
 import os
 from pathlib import Path
@@ -359,30 +360,71 @@ class StructuredData:
         for pv in self.schema.primary_variables:
             source = source[source[pv.column_name].astype(str).ne(TOTAL_VALUE)]
         source[primary_column_name] = source[primary_column_name].astype(str)
+        for pv in remaining_primary:
+            source[pv.column_name] = source[pv.column_name].astype(str)
         source[count_col] = pd.to_numeric(source[count_col], errors="coerce")
-        for key in moved_secondary.keys():
-            col = moved_secondary.count_column(key)
+        remaining_cols = [pv.column_name for pv in remaining_primary]
+        moved_keys = moved_secondary.keys()
+        count_columns = [moved_secondary.count_column(key) for key in moved_keys]
+        for col in count_columns:
             base[col] = pd.NA
+        for col in remaining_cols:
+            base[col] = base[col].astype(str)
 
-        for idx, row in base.iterrows():
-            mask = pd.Series(True, index=source.index)
-            for pv in remaining_primary:
-                row_val = str(row[pv.column_name])
-                if row_val == TOTAL_VALUE:
-                    mask &= source[pv.column_name].astype(str).ne(TOTAL_VALUE)
-                else:
-                    mask &= source[pv.column_name].astype(str).eq(row_val)
+        rollup_frames: list[pd.DataFrame] = []
+        for keep_size in range(len(remaining_cols), -1, -1):
+            for keep_cols_tuple in combinations(remaining_cols, keep_size):
+                keep_cols = list(keep_cols_tuple)
+                group_cols = [*keep_cols, primary_column_name]
+                grouped = (
+                    source.groupby(group_cols, dropna=False)[count_col]
+                    .sum(min_count=1)
+                    .reset_index()
+                )
+                if grouped.empty:
+                    continue
 
-            subset = source.loc[mask]
-            if subset.empty:
-                continue
-            counts = (
-                subset.groupby(primary_column_name, dropna=False)[count_col]
-                .sum(min_count=1)
-            )
-            for key in moved_secondary.keys():
-                value = counts.get(key, 0)
-                base.at[idx, moved_secondary.count_column(key)] = value
+                presence = grouped[group_cols].copy()
+                presence["_present"] = True
+
+                for col in remaining_cols:
+                    if col not in keep_cols:
+                        grouped[col] = TOTAL_VALUE
+                        presence[col] = TOTAL_VALUE
+
+                grouped = grouped[remaining_cols + [primary_column_name, count_col]]
+                presence = presence[remaining_cols + [primary_column_name, "_present"]]
+
+                values_pivot = grouped.pivot_table(
+                    index=remaining_cols,
+                    columns=primary_column_name,
+                    values=count_col,
+                    aggfunc="first",
+                )
+                present_pivot = presence.pivot_table(
+                    index=remaining_cols,
+                    columns=primary_column_name,
+                    values="_present",
+                    aggfunc="first",
+                )
+
+                values_pivot = values_pivot.reindex(columns=moved_keys)
+                present_pivot = present_pivot.reindex(columns=moved_keys)
+                values_pivot = values_pivot.where(present_pivot.notna(), 0)
+                values_pivot = values_pivot.rename(
+                    columns={key: moved_secondary.count_column(key) for key in moved_keys}
+                ).reset_index()
+                rollup_frames.append(values_pivot)
+
+        if rollup_frames:
+            counts_frame = pd.concat(rollup_frames, ignore_index=True, sort=False)
+            counts_frame = counts_frame.drop_duplicates(subset=remaining_cols, keep="last")
+            base = base.merge(counts_frame, on=remaining_cols, how="left", suffixes=("", "_flatten"))
+            for col in count_columns:
+                flatten_col = f"{col}_flatten"
+                if flatten_col in base.columns:
+                    base[col] = base[flatten_col].combine_first(base[col])
+                    base = base.drop(columns=[flatten_col])
 
         new_schema = Schema(
             primary_variables=remaining_primary,
