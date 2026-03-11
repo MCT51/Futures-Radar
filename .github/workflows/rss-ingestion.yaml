@@ -42,6 +42,19 @@ jobs:
             --output Wordcloud/wordcloud/bbc_education_inclusion_signals.csv \
             --discovered-output-csv Wordcloud/wordcloud/discovered_terms_preview.csv
 
+      - name: Drop discovery tables and vacuum DB
+        run: |
+          python3 -c "
+import sqlite3
+conn = sqlite3.connect('Wordcloud/wordcloud/bbc_education_inclusion.db')
+conn.execute('DROP TABLE IF EXISTS discovered_article_terms')
+conn.execute('DROP TABLE IF EXISTS discovered_term_stats')
+conn.execute('VACUUM')
+conn.commit()
+conn.close()
+print('Discovery tables dropped and DB vacuumed.')
+"
+
       - name: Run sentiment analysis
         env:
           HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
@@ -49,13 +62,7 @@ jobs:
           python3 Sentiment/sentiment.py
 
       - name: Commit and push changes
-        run: | 
-          git lfs track "Wordcloud/wordcloud/bbc_education_inclusion.db"
-          git add .gitattributes
-          git commit -m "Enable Git LFS for large files"
-          git add Wordcloud/wordcloud/bbc_education_inclusion.db
-          git commit -m "Add bbc_education_inclusion.db via Git LFS"
-          
+        run: |
           git add .
           git diff --cached --quiet || git commit -m "update data [skip ci]"
           git push
