@@ -16,12 +16,10 @@ dataset is selected.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import dash
 import pandas as pd
 import plotly.express as px
-from dash import Input, Output, callback, dcc, html
+from dash import Input, Output, State, callback, dcc, html
 
 from Ingestion.primary_variable import TOTAL_VALUE, QuantitativePrimaryVariable
 from Ingestion.structured_data import StructuredData
@@ -30,20 +28,11 @@ from Ingestion.secondary_variable import (
     QuantitativeDistributionVariable,
     QuantitativeScalarSecondaryVariable,
 )
+from pages._structured_dataset_registry import dataset_options, load_dataset
 
 dash.register_page(__name__, path="/line", name="Line")
 
-# ── Load datasets ────────────────────────────────────────────────────────────
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_DATASET_PATHS: dict[str, Path] = {
-    "SEN — Age & Sex": _REPO_ROOT / "Ingestion/test/output/sen_age_sex_structured.json",
-    "FSM — Ethnicity": _REPO_ROOT / "Ingestion/test/output/fsm_ethnicity_structured.json",
-}
-
-_datasets: dict[str, StructuredData] = {}
-for _name, _path in _DATASET_PATHS.items():
-    if _path.exists():
-        _datasets[_name] = StructuredData.load(_path)
+_DATASET_OPTIONS = dataset_options()
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -114,8 +103,34 @@ def _context_primary_column(sd: StructuredData, x_primary_column: str | None) ->
     return other[0] if other else None
 
 
+def _apply_primary_filters(
+    sd: StructuredData,
+    df: pd.DataFrame,
+    *,
+    x_primary_col: str,
+    context_value: str | None,
+) -> pd.DataFrame:
+    context_col = _context_primary_column(sd, x_primary_col)
+    filtered = df.copy()
+
+    for pv in sd.schema.primary_variables:
+        col = pv.column_name
+        if col == x_primary_col:
+            continue
+        if col == context_col:
+            if context_value is not None:
+                filtered = filtered[filtered[col].astype(str).eq(str(context_value))].copy()
+            continue
+
+        values = set(filtered[col].dropna().astype(str).unique().tolist())
+        if TOTAL_VALUE in values:
+            filtered = filtered[filtered[col].astype(str).eq(TOTAL_VALUE)].copy()
+
+    return filtered
+
+
 # ── Layout ───────────────────────────────────────────────────────────────────
-if not _datasets:
+if not _DATASET_OPTIONS:
     layout = html.Div(
         [
             html.H2("Line"),
@@ -129,7 +144,7 @@ if not _datasets:
     )
 
 else:
-    _first = next(iter(_datasets))
+    _first = _DATASET_OPTIONS[0]["value"]
 
     layout = html.Div(
         [
@@ -137,12 +152,18 @@ else:
             html.Div(
                 [
                     html.Label("Dataset"),
-                    dcc.Dropdown(
-                        id="line-dataset",
-                        options=[{"label": k, "value": k} for k in _datasets],
-                        value=_first,
-                        clearable=False,
-                        style={"width": "280px"},
+                    html.Div(
+                        [
+                            dcc.Dropdown(
+                                id="line-dataset",
+                                options=_DATASET_OPTIONS,
+                                value=_first,
+                                clearable=False,
+                                style={"width": "420px"},
+                            ),
+                            html.Button("Refresh datasets", id="line-refresh-datasets", style={"marginLeft": "12px"}),
+                        ],
+                        style={"display": "flex", "alignItems": "center"},
                     ),
                 ],
                 style={"marginBottom": "16px"},
@@ -230,6 +251,19 @@ else:
 
     # ── Callback 1: dataset/x selection drives control options ─────────────
     @callback(
+        Output("line-dataset", "options"),
+        Output("line-dataset", "value"),
+        Input("line-refresh-datasets", "n_clicks"),
+        State("line-dataset", "value"),
+    )
+    def refresh_dataset_options(_, current_value):
+        load_dataset.cache_clear()
+        options = dataset_options()
+        option_values = {opt["value"] for opt in options}
+        value = current_value if current_value in option_values else (options[0]["value"] if options else None)
+        return options, value
+
+    @callback(
         Output("line-x-primary", "options"),
         Output("line-x-primary", "value"),
         Output("line-context-label", "children"),
@@ -264,7 +298,7 @@ else:
         dist_category_value,
         dist_metric_value,
     ):
-        sd = _datasets.get(dataset_name)
+        sd = load_dataset(dataset_name) if dataset_name else None
         if sd is None:
             return [], None, "Context", [], None, [], None, [], None, True, [], None, True, "percent", True
 
@@ -376,7 +410,7 @@ else:
         if not dataset_name:
             return px.line(title="Select a dataset"), ""
 
-        sd = _datasets.get(dataset_name)
+        sd = load_dataset(dataset_name) if dataset_name else None
         if sd is None:
             return px.line(title="Dataset not loaded"), "Dataset unavailable."
 
@@ -416,9 +450,12 @@ else:
             return px.line(title=f"Column not found: {y_column}"), f"Missing column '{y_column}'."
 
         context_col = _context_primary_column(sd, x_primary_col)
-        d = sd.dataframe.copy()
-        if context_col is not None and context_value is not None:
-            d = d[d[context_col].astype(str).eq(str(context_value))].copy()
+        d = _apply_primary_filters(
+            sd,
+            sd.dataframe,
+            x_primary_col=x_primary_col,
+            context_value=context_value,
+        )
 
         d = d[d[x_primary_col].astype(str).ne(TOTAL_VALUE)].copy()
         d[y_column] = pd.to_numeric(d[y_column], errors="coerce")

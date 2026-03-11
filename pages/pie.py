@@ -18,30 +18,19 @@ NOTE on the Pie class (Pie/pie.py):
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import dash
 import pandas as pd
 import plotly.express as px
-from dash import Input, Output, callback, dcc, html
+from dash import Input, Output, State, callback, dcc, html
 
+from Ingestion.primary_variable import TOTAL_VALUE
 from Ingestion.structured_data import StructuredData
 from Ingestion.secondary_variable import DistributionSecondaryVariable
+from pages._structured_dataset_registry import dataset_options, load_dataset
 
 dash.register_page(__name__, path="/pie", name="Breakdowns")
 
-# ── Load datasets ────────────────────────────────────────────────────────────
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_DATASET_PATHS: dict[str, Path] = {
-    "SEN — Age & Sex": _REPO_ROOT / "Ingestion/test/output/sen_age_sex_structured.json",
-    "FSM — Ethnicity": _REPO_ROOT / "Ingestion/test/output/fsm_ethnicity_structured.json",
-    "FSM - Datasetbuilder test": _REPO_ROOT / "Ingestion/test/output/fsm_finaltest_structured.json",
-}
-
-_datasets: dict[str, StructuredData] = {}
-for _name, _path in _DATASET_PATHS.items():
-    if _path.exists():
-        _datasets[_name] = StructuredData.load(_path)
+_DATASET_OPTIONS = dataset_options()
 
 # ── Helpers (mirrors Pie class internals) ────────────────────────────────────
 
@@ -62,11 +51,36 @@ def _variable_options(sd: StructuredData) -> list[dict]:
 
 
 def _default_p2(sd: StructuredData) -> str | None:
+    if len(sd.schema.primary_variables) < 2:
+        return None
     opts = _primary_options(sd, 1)
     if not opts:
         return None
     values = [o["value"] for o in opts]
     return "Total" if "Total" in values else values[0]
+
+
+def _pie_primary_selection(
+    sd: StructuredData,
+    p1_value: str,
+    p2_value: str,
+) -> dict[str, str]:
+    selected: dict[str, str] = {}
+    primary_variables = sd.schema.primary_variables
+
+    selected[primary_variables[0].column_name] = str(p1_value)
+    selected[primary_variables[1].column_name] = str(p2_value)
+
+    for pv in primary_variables[2:]:
+        values = set(sd.dataframe[pv.column_name].dropna().astype(str).unique().tolist())
+        if TOTAL_VALUE in values:
+            selected[pv.column_name] = TOTAL_VALUE
+        else:
+            ordered_values = _primary_options(sd, primary_variables.index(pv))
+            if ordered_values:
+                selected[pv.column_name] = str(ordered_values[0]["value"])
+
+    return selected
 
 
 def _make_pie_frame(sd: StructuredData, p1_value, p2_value, variable_name, metric):
@@ -76,7 +90,8 @@ def _make_pie_frame(sd: StructuredData, p1_value, p2_value, variable_name, metri
 
     p1_col = sd.schema.primary_variables[0].column_name
     p2_col = sd.schema.primary_variables[1].column_name
-    row = sd.row_for(**{p1_col: str(p1_value), p2_col: str(p2_value)})
+    selection = _pie_primary_selection(sd, p1_value, p2_value)
+    row = sd.row_for(**selection)
 
     records = []
     for key in sv.keys():
@@ -90,7 +105,7 @@ def _make_pie_frame(sd: StructuredData, p1_value, p2_value, variable_name, metri
 
 
 # ── Layout ───────────────────────────────────────────────────────────────────
-if not _datasets:
+if not _DATASET_OPTIONS:
     layout = html.Div(
         [
             html.H2("Breakdowns"),
@@ -104,7 +119,7 @@ if not _datasets:
     )
 
 else:
-    _first = next(iter(_datasets))
+    _first = _DATASET_OPTIONS[0]["value"]
 
     layout = html.Div(
         [
@@ -113,12 +128,18 @@ else:
             html.Div(
                 [
                     html.Label("Dataset"),
-                    dcc.Dropdown(
-                        id="pie-dataset",
-                        options=[{"label": k, "value": k} for k in _datasets],
-                        value=_first,
-                        clearable=False,
-                        style={"width": "280px"},
+                    html.Div(
+                        [
+                            dcc.Dropdown(
+                                id="pie-dataset",
+                                options=_DATASET_OPTIONS,
+                                value=_first,
+                                clearable=False,
+                                style={"width": "420px"},
+                            ),
+                            html.Button("Refresh datasets", id="pie-refresh-datasets", style={"marginLeft": "12px"}),
+                        ],
+                        style={"display": "flex", "alignItems": "center"},
                     ),
                 ],
                 style={"marginBottom": "16px"},
@@ -154,6 +175,19 @@ else:
 
     # ── Callback 1: dataset change → update all dropdowns ───────────────────
     @callback(
+        Output("pie-dataset", "options"),
+        Output("pie-dataset", "value"),
+        Input("pie-refresh-datasets", "n_clicks"),
+        State("pie-dataset", "value"),
+    )
+    def refresh_dataset_options(_, current_value):
+        load_dataset.cache_clear()
+        options = dataset_options()
+        option_values = {opt["value"] for opt in options}
+        value = current_value if current_value in option_values else (options[0]["value"] if options else None)
+        return options, value
+
+    @callback(
         Output("pie-p1-label", "children"),
         Output("pie-p1", "options"),
         Output("pie-p1", "value"),
@@ -165,10 +199,13 @@ else:
         Input("pie-dataset", "value"),
     )
     def update_dropdowns(dataset_name):
-        sd = _datasets.get(dataset_name)
+        sd = load_dataset(dataset_name) if dataset_name else None
         if sd is None:
             empty = []
             return "Year", empty, None, "Location", empty, None, empty, None
+        if len(sd.schema.primary_variables) < 2:
+            empty = []
+            return "Primary 1", empty, None, "Primary 2", empty, None, _variable_options(sd), None
 
         p1_opts = _primary_options(sd, 0)
         p2_opts = _primary_options(sd, 1)
@@ -196,9 +233,11 @@ else:
         if not all([dataset_name, p1_value, variable_name, p2_value]):
             return px.pie(title="Select all options above"), ""
 
-        sd = _datasets.get(dataset_name)
+        sd = load_dataset(dataset_name) if dataset_name else None
         if sd is None:
             return px.pie(title="Dataset not loaded"), "Dataset unavailable."
+        if len(sd.schema.primary_variables) < 2:
+            return px.pie(title="Dataset requires at least two primary variables"), "Pie view needs at least two primary variables."
 
         try:
             chart_df, err = _make_pie_frame(sd, p1_value, p2_value, variable_name, metric="percent")
@@ -224,5 +263,13 @@ else:
         fig.update_traces(textposition="inside", textinfo="percent+label")
         fig.update_layout(margin=dict(l=20, r=20, t=60, b=20))
 
-        note = f"Showing percentages. Dataset: {dataset_name}."
+        hidden_totals = [
+            pv.title
+            for pv in sd.schema.primary_variables[2:]
+            if TOTAL_VALUE in set(sd.dataframe[pv.column_name].dropna().astype(str).unique().tolist())
+        ]
+        if hidden_totals:
+            note = f"Showing percentages. Hidden primaries fixed at Total: {', '.join(hidden_totals)}."
+        else:
+            note = f"Showing percentages. Dataset: {dataset_name}."
         return fig, note
