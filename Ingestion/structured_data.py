@@ -37,7 +37,8 @@ class StructuredData:
 
     Assumes totals/percentages/averages have already been generated (or upserted)
     according to the schema. Missing sections are represented via NaN values and
-    `defined_map[(primary_tuple, secondary_variable_name)] -> bool`.
+    a sparse false-only `defined_map[(primary_tuple, secondary_variable_name)] -> False`.
+    Missing keys imply "defined".
     """
 
     dataframe: pd.DataFrame
@@ -48,6 +49,8 @@ class StructuredData:
         self.dataframe = self.dataframe.copy()
         if not self.defined_map:
             self.defined_map = self._build_defined_map()
+        else:
+            self.defined_map = self._normalize_defined_map(self.defined_map)
 
     @classmethod
     def from_dataframe(
@@ -81,13 +84,15 @@ class StructuredData:
     def to_dict(self, *, csv_path: str | None = None, include_schema: bool = True) -> dict[str, Any]:
         data: dict[str, Any] = {
             "csv_path": csv_path,
+            "defined_map_storage": "false_only",
             "defined_map": [
                 {
                     "primary_values": list(primary_tuple),
                     "secondary_variable_name": secondary_name,
-                    "defined": bool(is_defined),
+                    "defined": False,
                 }
                 for (primary_tuple, secondary_name), is_defined in self.defined_map.items()
+                if not is_defined
             ],
         }
         if include_schema:
@@ -118,17 +123,23 @@ class StructuredData:
                 raise ValueError("No dataframe/csv_path provided for StructuredData.from_dict")
             dataframe = pd.read_csv(resolved_csv_path)
 
-        defined_map: DefinedMap = {}
+        defined_map_storage = data.get("defined_map_storage", "full")
+        raw_defined_map: DefinedMap = {}
         for item in data.get("defined_map", []):
             key = (tuple(str(v) for v in item["primary_values"]), item["secondary_variable_name"])
-            defined_map[key] = bool(item["defined"])
+            raw_defined_map[key] = bool(item.get("defined", False))
+
+        if defined_map_storage == "false_only":
+            defined_map = {key: False for key, is_defined in raw_defined_map.items() if not is_defined}
+        else:
+            defined_map = {key: False for key, is_defined in raw_defined_map.items() if not is_defined}
 
         return cls.from_dataframe(dataframe, schema, validate_final=validate_final).with_defined_map(
             defined_map
         )
 
     def with_defined_map(self, defined_map: DefinedMap) -> "StructuredData":
-        self.defined_map = defined_map
+        self.defined_map = self._normalize_defined_map(defined_map)
         return self
 
     def save(
@@ -187,8 +198,12 @@ class StructuredData:
     def primary_key_tuple(self, row: pd.Series) -> tuple[str, ...]:
         return tuple(str(row[col]) for col in self.schema.primary_column_names())
 
+    @staticmethod
+    def _normalize_defined_map(defined_map: DefinedMap) -> DefinedMap:
+        return {key: False for key, is_defined in defined_map.items() if not is_defined}
+
     def _build_defined_map(self) -> DefinedMap:
-        defined: DefinedMap = {}
+        undefined: DefinedMap = {}
         pcols = self.schema.primary_column_names()
 
         for _, row in self.dataframe.iterrows():
@@ -202,19 +217,31 @@ class StructuredData:
                 present_cols = [c for c in required_cols if c in self.dataframe.columns]
 
                 if not present_cols:
-                    defined[key] = False
+                    undefined[key] = False
                     continue
 
                 values = row[present_cols]
                 # Empty entry policy: NaN or blank string counts as undefined.
                 non_blank = values.map(lambda v: not (pd.isna(v) or (isinstance(v, str) and v.strip() == "")))
-                defined[key] = bool(non_blank.all())
+                if not bool(non_blank.all()):
+                    undefined[key] = False
 
-        return defined
+        return undefined
 
     def is_defined(self, primary_values: dict[str, str], secondary_variable_name: str) -> bool:
         pk = tuple(str(primary_values[col]) for col in self.schema.primary_column_names())
-        return self.defined_map.get((pk, secondary_variable_name), False)
+        key = (pk, secondary_variable_name)
+        if key in self.defined_map:
+            return False
+
+        mask = pd.Series(True, index=self.dataframe.index)
+        for col, value in zip(self.schema.primary_column_names(), pk):
+            mask &= self.dataframe[col].astype(str).eq(value)
+        if not mask.any():
+            return False
+        if secondary_variable_name not in self.schema.secondary_names():
+            return False
+        return True
 
     def row_for(self, **primary_values: str) -> pd.Series:
         mask = pd.Series(True, index=self.dataframe.index)
